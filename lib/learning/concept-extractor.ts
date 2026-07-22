@@ -1,6 +1,11 @@
-import OpenAI from "openai";
-
 import type { ConceptExtraction } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const MIN_CONCEPTS = 3;
@@ -23,31 +28,13 @@ Rules:
   "advancedTopics": string[]
 }`;
 
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid concept extraction: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function asStringList(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid concept extraction: "${field}" must be an array`);
-  }
-
-  return value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 export function parseConceptExtraction(raw: unknown): ConceptExtraction {
   if (!raw || typeof raw !== "object") {
     throw new Error("Invalid concept extraction: expected a JSON object");
   }
 
   const data = raw as Record<string, unknown>;
-  const concepts = asStringList(data.concepts, "concepts");
+  const concepts = asStringList(data.concepts, "concepts", "concept extraction");
 
   if (concepts.length < MIN_CONCEPTS || concepts.length > MAX_CONCEPTS) {
     throw new Error(
@@ -56,10 +43,18 @@ export function parseConceptExtraction(raw: unknown): ConceptExtraction {
   }
 
   return {
-    topic: asNonEmptyString(data.topic, "topic"),
+    topic: asNonEmptyString(data.topic, "topic", "concept extraction"),
     concepts,
-    prerequisites: asStringList(data.prerequisites, "prerequisites"),
-    advancedTopics: asStringList(data.advancedTopics, "advancedTopics"),
+    prerequisites: asStringList(
+      data.prerequisites,
+      "prerequisites",
+      "concept extraction",
+    ),
+    advancedTopics: asStringList(
+      data.advancedTopics,
+      "advancedTopics",
+      "concept extraction",
+    ),
   };
 }
 
@@ -69,12 +64,7 @@ export async function extractConcepts(question: string): Promise<ConceptExtracti
     throw new Error("Question is required");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
-  const client = new OpenAI({ apiKey });
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
@@ -85,17 +75,9 @@ export async function extractConcepts(question: string): Promise<ConceptExtracti
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No concept extraction returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse concept extraction JSON");
-  }
-
-  return parseConceptExtraction(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "concept extraction",
+  );
+  return parseConceptExtraction(parseModelJson(content, "concept extraction"));
 }

@@ -42,6 +42,13 @@ export {
 export { buildScenes, parseScenePlan } from "./scene-consistency";
 export { applyCorrectedPanels } from "./apply-corrected-panels";
 export {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
+export {
   ComicRenderIncompleteError,
   summarizeRenderFailures,
   type RenderFailureSummary,

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseImagePromptPlan } from "./image-prompt-generator";
+import {
+  assertPromptCoverage,
+  missingPromptCategories,
+  parseImagePromptPlan,
+} from "./image-prompt-generator";
 
 function goodPrompt(): string {
   return [
@@ -35,7 +39,7 @@ describe("parseImagePromptPlan", () => {
     expect(() => parseImagePromptPlan(valid, [1, 2])).toThrow(/expected 2/);
   });
 
-  it("rejects prompts missing required elements", () => {
+  it("rejects prompts that are too short / low coverage", () => {
     expect(() =>
       parseImagePromptPlan(
         {
@@ -44,7 +48,26 @@ describe("parseImagePromptPlan", () => {
         },
         [1],
       ),
-    ).toThrow(/missing/);
+    ).toThrow(/too short|categories/);
+  });
+
+  it("accepts synonym-rich prompts without exact tokens", () => {
+    const synonymPrompt = [
+      "Two people in a classroom setting, establishing shot,",
+      "warm natural light, smiling faces,",
+      "illustration style educational comic panel artwork with clear poses.",
+    ].join(" ");
+
+    expect(() => assertPromptCoverage(synonymPrompt, 1)).not.toThrow();
+    expect(
+      parseImagePromptPlan(
+        {
+          style: "educational comic",
+          panels: [{ id: 1, imagePrompt: synonymPrompt }],
+        },
+        [1],
+      ).panels,
+    ).toHaveLength(1);
   });
 
   it("rejects wrong panel id", () => {
@@ -69,5 +92,13 @@ describe("parseImagePromptPlan", () => {
         [1],
       ),
     ).toThrow(/imagePrompt/);
+  });
+});
+
+describe("missingPromptCategories", () => {
+  it("lists unmatched categories", () => {
+    expect(missingPromptCategories("just some words here without structure")).toEqual(
+      expect.arrayContaining(["character", "scene", "camera", "lighting", "expression", "style"]),
+    );
   });
 });

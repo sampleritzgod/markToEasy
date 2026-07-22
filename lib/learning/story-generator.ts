@@ -1,6 +1,11 @@
-import OpenAI from "openai";
-
 import type { LearningPlan, Story } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const MAX_STORY_WORDS = 500;
@@ -24,39 +29,15 @@ Rules:
   "moral": string
 }`;
 
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid story: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
 function asCharacterList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error('Invalid story: "characters" must be an array');
-  }
-
-  const characters = value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
+  const characters = asStringList(value, "characters", "story");
   if (characters.length === 0) {
     throw new Error('Invalid story: "characters" must contain at least one character');
   }
-
   return characters;
 }
 
@@ -92,7 +73,7 @@ export function parseStory(raw: unknown): Story {
   }
 
   const data = raw as Record<string, unknown>;
-  const story = asNonEmptyString(data.story, "story");
+  const story = asNonEmptyString(data.story, "story", "story");
   const words = countWords(story);
 
   if (words > MAX_STORY_WORDS) {
@@ -102,18 +83,18 @@ export function parseStory(raw: unknown): Story {
   }
 
   return {
-    title: asNonEmptyString(data.title, "title"),
-    setting: asNonEmptyString(data.setting, "setting"),
+    title: asNonEmptyString(data.title, "title", "story"),
+    setting: asNonEmptyString(data.setting, "setting", "story"),
     characters: asCharacterList(data.characters),
     story,
-    moral: asNonEmptyString(data.moral, "moral"),
+    moral: asNonEmptyString(data.moral, "moral", "story"),
   };
 }
 
 export async function generateStory(plan: LearningPlan): Promise<Story> {
   assertValidPlan(plan);
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.7,
@@ -132,17 +113,9 @@ ${formatPlan(plan)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No story returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse story JSON");
-  }
-
-  return parseStory(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "story",
+  );
+  return parseStory(parseModelJson(content, "story"));
 }

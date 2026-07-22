@@ -1,12 +1,12 @@
 import { getCachedLesson, saveLessonToCache } from "@/lib/cache";
 
+import { applyCorrectedPanels } from "./apply-corrected-panels";
 import { generateCharacterBible } from "./character-bible";
 import { generateComicPlan } from "./comic-planner";
 import { renderComic } from "./comic-renderer";
 import { extractConcepts } from "./concept-extractor";
 import { generateImagePrompts } from "./image-prompt-generator";
 import { validateLearning } from "./learning-validator";
-import { applyCorrectedPanels } from "./apply-corrected-panels";
 import { planLearning } from "./planner";
 import { generateQuiz } from "./quiz-generator";
 import {
@@ -141,22 +141,21 @@ export async function runLearningSession(
     }
   }
 
-  const learningPlan = await runStep("Learning Planner", () =>
-    planLearning({ question: trimmed }),
-  );
+  // Independent LLM calls — run in parallel (M5).
+  const [learningPlan, concepts] = await Promise.all([
+    runStep("Learning Planner", () => planLearning({ question: trimmed })),
+    runStep("Concept Extractor", () => extractConcepts(trimmed)),
+  ]);
 
-  const concepts = await runStep("Concept Extractor", () => extractConcepts(trimmed));
-
-  // Comic-only product path: skip style-router LLM call (H2).
   const learningStyle = comicOnlyLearningStyle(learningPlan.topic);
 
   const story = await runStep("Story Generator", () => generateStory(learningPlan));
 
-  const characterBible = await runStep("Character Bible", () =>
-    generateCharacterBible(story),
-  );
-
-  const initialComicPlan = await runStep("Comic Planner", () => generateComicPlan(story));
+  // Both only need the story.
+  const [characterBible, initialComicPlan] = await Promise.all([
+    runStep("Character Bible", () => generateCharacterBible(story)),
+    runStep("Comic Planner", () => generateComicPlan(story)),
+  ]);
 
   const { comicPlan, validation } = await validateWithCorrectionPass(
     learningPlan,
@@ -164,20 +163,33 @@ export async function runLearningSession(
     initialComicPlan,
   );
 
-  const scenePlan = await runStep("Scene Consistency Engine", () =>
+  // Quiz does not depend on images/scenes — overlap with scene + image work.
+  const scenePlanPromise = runStep("Scene Consistency Engine", () =>
     buildScenes(characterBible, comicPlan),
   );
+  const quizPromise = runStep("Quiz Generator", () =>
+    generateQuiz({
+      plan: learningPlan,
+      story,
+      comicPlan,
+    }),
+  );
+
+  const scenePlan = await scenePlanPromise;
 
   const imagePrompts = await runStep("Image Prompt Generator", () =>
     generateImagePrompts(comicPlan, { scenePlan, characterBible }),
   );
 
-  const renderedComic = await runStep("Comic Renderer", () =>
-    renderComic(imagePrompts, {
-      title: story.title,
-      comicPlan,
-    }),
-  );
+  const [renderedComic, quiz] = await Promise.all([
+    runStep("Comic Renderer", () =>
+      renderComic(imagePrompts, {
+        title: story.title,
+        comicPlan,
+      }),
+    ),
+    quizPromise,
+  ]);
 
   const renderSummary = summarizeRenderFailures(renderedComic);
   if (renderSummary.someFailed) {
@@ -188,14 +200,6 @@ export async function runLearningSession(
   if (failIfAllImagesFailed && renderSummary.allFailed) {
     throw new ComicRenderIncompleteError(renderedComic, renderSummary);
   }
-
-  const quiz = await runStep("Quiz Generator", () =>
-    generateQuiz({
-      plan: learningPlan,
-      story,
-      comicPlan,
-    }),
-  );
 
   const session: LearningSession = {
     learningPlan,

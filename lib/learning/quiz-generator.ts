@@ -1,6 +1,10 @@
-import OpenAI from "openai";
-
 import type { Quiz, QuizLesson, QuizQuestion } from "./types";
+import {
+  asNonEmptyString,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const QUESTION_COUNT = 5;
@@ -29,13 +33,6 @@ Rules:
   ]
 }`;
 
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid quiz: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
 function parseQuestion(raw: unknown, index: number): QuizQuestion {
   if (!raw || typeof raw !== "object") {
     throw new Error(`Invalid quiz: questions[${index}] must be an object`);
@@ -58,6 +55,7 @@ function parseQuestion(raw: unknown, index: number): QuizQuestion {
   const correctAnswer = asNonEmptyString(
     data.correctAnswer,
     `questions[${index}].correctAnswer`,
+    "quiz",
   );
 
   if (!options.includes(correctAnswer)) {
@@ -67,13 +65,14 @@ function parseQuestion(raw: unknown, index: number): QuizQuestion {
   }
 
   return {
-    id: asNonEmptyString(data.id, `questions[${index}].id`),
-    question: asNonEmptyString(data.question, `questions[${index}].question`),
+    id: asNonEmptyString(data.id, `questions[${index}].id`, "quiz"),
+    question: asNonEmptyString(data.question, `questions[${index}].question`, "quiz"),
     options,
     correctAnswer,
     explanation: asNonEmptyString(
       data.explanation,
       `questions[${index}].explanation`,
+      "quiz",
     ),
   };
 }
@@ -124,12 +123,7 @@ function assertValidLesson(lesson: QuizLesson): void {
 export async function generateQuiz(lesson: QuizLesson): Promise<Quiz> {
   assertValidLesson(lesson);
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
-  const client = new OpenAI({ apiKey });
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.3,
@@ -152,17 +146,9 @@ ${JSON.stringify(lesson.comicPlan, null, 2)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No quiz returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse quiz JSON");
-  }
-
-  return parseQuiz(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "quiz",
+  );
+  return parseQuiz(parseModelJson(content, "quiz"));
 }

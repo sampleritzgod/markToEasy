@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 import {
   IMAGE_PROMPT_STYLE,
   type CharacterBible,
@@ -8,17 +6,96 @@ import {
   type ImagePromptPlan,
   type ScenePlan,
 } from "./types";
+import {
+  asNonEmptyString,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
+const MIN_PROMPT_LENGTH = 80;
+/** Require at least this many coverage categories (of 6). */
+const MIN_CATEGORY_MATCHES = 4;
 
-const REQUIRED_PROMPT_ELEMENTS = [
-  "character",
-  "scene",
-  "camera",
-  "lighting",
-  "expression",
-  "educational comic",
-] as const;
+type PromptCategory = {
+  id: string;
+  patterns: RegExp[];
+};
+
+/**
+ * Synonym-aware coverage checks — avoids brittle exact substring matching (M4).
+ * A prompt passes when enough categories match via any synonym pattern.
+ */
+const PROMPT_CATEGORIES: PromptCategory[] = [
+  {
+    id: "character",
+    patterns: [
+      /\bcharacters?\b/i,
+      /\bpeople\b/i,
+      /\bperson\b/i,
+      /\bfigure\b/i,
+      /\bprotagonist\b/i,
+    ],
+  },
+  {
+    id: "scene",
+    patterns: [
+      /\bscene\b/i,
+      /\bsetting\b/i,
+      /\benvironment\b/i,
+      /\blocation\b/i,
+      /\bbackground\b/i,
+      /\bclassroom\b/i,
+      /\binterior\b/i,
+      /\bexterior\b/i,
+    ],
+  },
+  {
+    id: "camera",
+    patterns: [
+      /\bcamera\b/i,
+      /\b(?:medium|wide|long|establishing)\s+shot\b/i,
+      /\bclose[- ]?up\b/i,
+      /\bangle\b/i,
+      /\bviewpoint\b/i,
+      /\bperspective\b/i,
+      /\bfrom\s+above\b/i,
+      /\bfrom\s+below\b/i,
+    ],
+  },
+  {
+    id: "lighting",
+    patterns: [
+      /\blighting\b/i,
+      /\billuminat/i,
+      /\b(?:soft|hard|warm|cool|natural|dramatic)\s+light\b/i,
+      /\bsunlight\b/i,
+      /\bshadows?\b/i,
+      /\bglow\b/i,
+    ],
+  },
+  {
+    id: "expression",
+    patterns: [
+      /\bexpressions?\b/i,
+      /\bfacial\b/i,
+      /\b(?:curious|happy|surprised|worried|focused|smiling|neutral)\b/i,
+      /\bemotion\b/i,
+      /\bmood\b/i,
+    ],
+  },
+  {
+    id: "style",
+    patterns: [
+      /\beducational\s+comic\b/i,
+      /\bcomic\s+style\b/i,
+      /\bcomic\s+panel\b/i,
+      /\billustration\s+style\b/i,
+      /\bgraphic\s+novel\b/i,
+    ],
+  },
+];
 
 const SYSTEM_PROMPT = `You are an image prompt generator for educational comics. Turn consistent scene panels into one image prompt per panel and return ONLY valid JSON.
 
@@ -47,21 +124,6 @@ Rules:
     }
   ]
 }`;
-
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid image prompt plan: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
 
 function assertValidComicPlan(comicPlan: ComicPlan): void {
   if (!comicPlan?.title?.trim()) {
@@ -136,13 +198,26 @@ function formatComicPlanFallback(comicPlan: ComicPlan): string {
   );
 }
 
-function assertPromptCoverage(prompt: string, panelId: number): void {
-  const lower = prompt.toLowerCase();
-  const missing = REQUIRED_PROMPT_ELEMENTS.filter((element) => !lower.includes(element));
+/** Exported for unit tests. */
+export function missingPromptCategories(prompt: string): string[] {
+  return PROMPT_CATEGORIES.filter(
+    (category) => !category.patterns.some((pattern) => pattern.test(prompt)),
+  ).map((category) => category.id);
+}
 
-  if (missing.length > 0) {
+export function assertPromptCoverage(prompt: string, panelId: number): void {
+  if (prompt.trim().length < MIN_PROMPT_LENGTH) {
     throw new Error(
-      `Invalid image prompt plan: panel ${panelId} prompt is missing: ${missing.join(", ")}`,
+      `Invalid image prompt plan: panel ${panelId} prompt is too short (min ${MIN_PROMPT_LENGTH} chars)`,
+    );
+  }
+
+  const missing = missingPromptCategories(prompt);
+  const matched = PROMPT_CATEGORIES.length - missing.length;
+
+  if (matched < MIN_CATEGORY_MATCHES) {
+    throw new Error(
+      `Invalid image prompt plan: panel ${panelId} prompt covers ${matched}/${PROMPT_CATEGORIES.length} categories (need ${MIN_CATEGORY_MATCHES}); missing: ${missing.join(", ")}`,
     );
   }
 }
@@ -161,7 +236,11 @@ function parsePanel(raw: unknown, expectedId: number): ImagePromptPanel {
     );
   }
 
-  const imagePrompt = asNonEmptyString(data.imagePrompt, "imagePrompt");
+  const imagePrompt = asNonEmptyString(
+    data.imagePrompt,
+    "imagePrompt",
+    "image prompt plan",
+  );
   assertPromptCoverage(imagePrompt, id);
 
   return { id, imagePrompt };
@@ -176,7 +255,7 @@ export function parseImagePromptPlan(
   }
 
   const data = raw as Record<string, unknown>;
-  const style = asNonEmptyString(data.style, "style");
+  const style = asNonEmptyString(data.style, "style", "image prompt plan");
 
   if (style !== IMAGE_PROMPT_STYLE) {
     throw new Error(
@@ -221,7 +300,7 @@ export async function generateImagePrompts(
   }
 
   const expectedPanelIds = comicPlan.panels.map((panel) => panel.id);
-  const client = getClient();
+  const client = getOpenAIClient();
   const userContent = scenePlan
     ? `Create one image prompt per panel from this scene-consistent package.
 
@@ -248,17 +327,10 @@ ${formatComicPlanFallback(comicPlan)}`;
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No image prompt plan returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse image prompt plan JSON");
-  }
-
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "image prompt plan",
+  );
+  const parsed = parseModelJson(content, "image prompt plan");
   return parseImagePromptPlan(parsed, expectedPanelIds);
 }

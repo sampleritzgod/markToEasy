@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 import {
   LEARNING_DIFFICULTIES,
   LEARNING_STYLE,
@@ -7,6 +5,13 @@ import {
   type LearningPlan,
   type PlanLearningInput,
 } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 
@@ -30,14 +35,6 @@ Rules:
   "learningStyle": "comic"
 }`;
 
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
 function isDifficulty(value: unknown): value is LearningDifficulty {
   return (
     typeof value === "string" &&
@@ -45,27 +42,11 @@ function isDifficulty(value: unknown): value is LearningDifficulty {
   );
 }
 
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid learning plan: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
 function asConceptList(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error('Invalid learning plan: "concepts" must be an array');
-  }
-
-  const concepts = value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
+  const concepts = asStringList(value, "concepts", "learning plan");
   if (concepts.length === 0) {
     throw new Error('Invalid learning plan: "concepts" must contain at least one concept');
   }
-
   return concepts;
 }
 
@@ -84,10 +65,10 @@ export function parseLearningPlan(raw: unknown): LearningPlan {
   }
 
   return {
-    topic: asNonEmptyString(data.topic, "topic"),
+    topic: asNonEmptyString(data.topic, "topic", "learning plan"),
     difficulty,
     concepts: asConceptList(data.concepts),
-    analogy: asNonEmptyString(data.analogy, "analogy"),
+    analogy: asNonEmptyString(data.analogy, "analogy", "learning plan"),
     learningStyle: LEARNING_STYLE,
   };
 }
@@ -98,7 +79,7 @@ export async function planLearning(input: PlanLearningInput): Promise<LearningPl
     throw new Error("Question is required");
   }
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
@@ -109,17 +90,9 @@ export async function planLearning(input: PlanLearningInput): Promise<LearningPl
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No learning plan returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse learning plan JSON");
-  }
-
-  return parseLearningPlan(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "learning plan",
+  );
+  return parseLearningPlan(parseModelJson(content, "learning plan"));
 }
