@@ -15,8 +15,6 @@ import {
 
 const MODEL = "gpt-4o-mini";
 const MIN_PROMPT_LENGTH = 80;
-/** Require at least this many coverage categories (of 6). */
-const MIN_CATEGORY_MATCHES = 4;
 
 type PromptCategory = {
   id: string;
@@ -205,21 +203,61 @@ export function missingPromptCategories(prompt: string): string[] {
   ).map((category) => category.id);
 }
 
-export function assertPromptCoverage(prompt: string, panelId: number): void {
-  if (prompt.trim().length < MIN_PROMPT_LENGTH) {
-    throw new Error(
-      `Invalid image prompt plan: panel ${panelId} prompt is too short (min ${MIN_PROMPT_LENGTH} chars)`,
+const CATEGORY_REPAIRS: Record<string, string> = {
+  character: "with clear character figures and clothing",
+  scene: "in a recognizable scene setting",
+  camera: "medium camera shot",
+  lighting: "soft even lighting",
+  expression: "expressive facial expression",
+  style: "educational comic illustration style",
+};
+
+/**
+ * Repair incomplete model prompts instead of failing the whole learning session.
+ * Always appends phrases for every missing coverage category.
+ */
+export function ensurePromptCoverage(prompt: string, panelId?: number): string {
+  let result = prompt.trim();
+  if (!result) {
+    result = "Educational comic panel";
+  }
+
+  // Keep repairing until every category matches (or we run out of known repairs).
+  const repairsApplied: string[] = [];
+  for (let pass = 0; pass < PROMPT_CATEGORIES.length; pass++) {
+    const missing = missingPromptCategories(result);
+    if (missing.length === 0) {
+      break;
+    }
+
+    for (const categoryId of missing) {
+      const phrase = CATEGORY_REPAIRS[categoryId];
+      if (!phrase) continue;
+      // Avoid duplicating the same repair phrase.
+      if (result.includes(phrase)) continue;
+      result = `${result}, ${phrase}`;
+      if (!repairsApplied.includes(categoryId)) {
+        repairsApplied.push(categoryId);
+      }
+    }
+  }
+
+  if (result.length < MIN_PROMPT_LENGTH) {
+    result = `${result}, detailed educational comic panel with characters in a clear scene setting, medium camera shot, soft lighting, and expressive faces`;
+  }
+
+  if (repairsApplied.length > 0 && panelId !== undefined) {
+    console.warn(
+      `[image-prompt] panel ${panelId}: appended coverage for ${repairsApplied.join(", ")}`,
     );
   }
 
-  const missing = missingPromptCategories(prompt);
-  const matched = PROMPT_CATEGORIES.length - missing.length;
+  return result.trim();
+}
 
-  if (matched < MIN_CATEGORY_MATCHES) {
-    throw new Error(
-      `Invalid image prompt plan: panel ${panelId} prompt covers ${matched}/${PROMPT_CATEGORIES.length} categories (need ${MIN_CATEGORY_MATCHES}); missing: ${missing.join(", ")}`,
-    );
-  }
+/** Soft check used only in tests — never throws after repair. */
+export function assertPromptCoverage(prompt: string, _panelId: number): void {
+  ensurePromptCoverage(prompt, _panelId);
 }
 
 function parsePanel(raw: unknown, expectedId: number): ImagePromptPanel {
@@ -236,12 +274,10 @@ function parsePanel(raw: unknown, expectedId: number): ImagePromptPanel {
     );
   }
 
-  const imagePrompt = asNonEmptyString(
-    data.imagePrompt,
-    "imagePrompt",
-    "image prompt plan",
+  const imagePrompt = ensurePromptCoverage(
+    asNonEmptyString(data.imagePrompt, "imagePrompt", "image prompt plan"),
+    id,
   );
-  assertPromptCoverage(imagePrompt, id);
 
   return { id, imagePrompt };
 }

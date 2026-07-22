@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  assertPromptCoverage,
+  ensurePromptCoverage,
   missingPromptCategories,
   parseImagePromptPlan,
 } from "./image-prompt-generator";
@@ -39,35 +39,38 @@ describe("parseImagePromptPlan", () => {
     expect(() => parseImagePromptPlan(valid, [1, 2])).toThrow(/expected 2/);
   });
 
-  it("rejects prompts that are too short / low coverage", () => {
-    expect(() =>
-      parseImagePromptPlan(
-        {
-          style: "educational comic",
-          panels: [{ id: 1, imagePrompt: "a nice drawing" }],
-        },
-        [1],
-      ),
-    ).toThrow(/too short|categories/);
+  it("repairs the exact production failure: missing character, scene, style", () => {
+    // Matches the live error: covers 3/6; missing character, scene, style
+    const thinPrompt =
+      "Close-up camera of a glowing DNS resolver node, dramatic lighting, focused expression on the interface.";
+
+    expect(missingPromptCategories(thinPrompt)).toEqual(
+      expect.arrayContaining(["character", "scene", "style"]),
+    );
+
+    const plan = parseImagePromptPlan(
+      {
+        style: "educational comic",
+        panels: [{ id: 1, imagePrompt: thinPrompt }],
+      },
+      [1],
+    );
+
+    expect(plan.panels[0].imagePrompt).toMatch(/character/i);
+    expect(plan.panels[0].imagePrompt).toMatch(/scene/i);
+    expect(plan.panels[0].imagePrompt).toMatch(/comic/i);
+    expect(missingPromptCategories(plan.panels[0].imagePrompt)).toEqual([]);
   });
 
-  it("accepts synonym-rich prompts without exact tokens", () => {
-    const synonymPrompt = [
-      "Two people in a classroom setting, establishing shot,",
-      "warm natural light, smiling faces,",
-      "illustration style educational comic panel artwork with clear poses.",
-    ].join(" ");
-
-    expect(() => assertPromptCoverage(synonymPrompt, 1)).not.toThrow();
-    expect(
-      parseImagePromptPlan(
-        {
-          style: "educational comic",
-          panels: [{ id: 1, imagePrompt: synonymPrompt }],
-        },
-        [1],
-      ).panels,
-    ).toHaveLength(1);
+  it("repairs extremely thin prompts without throwing", () => {
+    const plan = parseImagePromptPlan(
+      {
+        style: "educational comic",
+        panels: [{ id: 1, imagePrompt: "a nice drawing of DNS" }],
+      },
+      [1],
+    );
+    expect(missingPromptCategories(plan.panels[0].imagePrompt)).toEqual([]);
   });
 
   it("rejects wrong panel id", () => {
@@ -95,10 +98,9 @@ describe("parseImagePromptPlan", () => {
   });
 });
 
-describe("missingPromptCategories", () => {
-  it("lists unmatched categories", () => {
-    expect(missingPromptCategories("just some words here without structure")).toEqual(
-      expect.arrayContaining(["character", "scene", "camera", "lighting", "expression", "style"]),
-    );
+describe("ensurePromptCoverage", () => {
+  it("never throws and fills all categories", () => {
+    const repaired = ensurePromptCoverage("diagram only", 1);
+    expect(missingPromptCategories(repaired)).toEqual([]);
   });
 });
