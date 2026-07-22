@@ -150,3 +150,21 @@ export type ConceptExtraction = {
   prerequisites: string[];
   advancedTopics: string[];
 };
+
+export type QuizQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+};
+
+export type Quiz = {
+  questions: QuizQuestion[];
+};
+
+export type QuizLesson = {
+  plan: LearningPlan;
+  story: Story;
+  comicPlan: ComicPlan;
+};

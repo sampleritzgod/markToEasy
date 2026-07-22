@@ -25,6 +25,7 @@ export {
   validateLearning,
 } from "./learning-validator";
 export { planLearning, parseLearningPlan } from "./planner";
+export { generateQuiz, parseQuiz } from "./quiz-generator";
 export { buildScenes, parseScenePlan } from "./scene-consistency";
 export { generateStory, parseStory } from "./story-generator";
 export { parseLearningStyle, selectLearningStyle } from "./style-router";
@@ -47,6 +48,9 @@ export {
   type LearningStyle,
   type LearningStyleId,
   type PlanLearningInput,
+  type Quiz,
+  type QuizLesson,
+  type QuizQuestion,
   type RenderedComic,
   type RenderedPanel,
   type ScenePanel,
