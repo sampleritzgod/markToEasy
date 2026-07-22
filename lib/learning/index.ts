@@ -16,6 +16,10 @@ export {
   generateImagePrompts,
   parseImagePromptPlan,
 } from "./image-prompt-generator";
+export {
+  parseValidationResult,
+  validateLearning,
+} from "./learning-validator";
 export { planLearning, parseLearningPlan } from "./planner";
 export { buildScenes, parseScenePlan } from "./scene-consistency";
 export { generateStory, parseStory } from "./story-generator";
@@ -40,4 +44,5 @@ export {
   type ScenePanel,
   type ScenePlan,
   type Story,
+  type ValidationResult,
 } from "./types";

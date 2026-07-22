@@ -117,3 +117,11 @@ export type ScenePlan = {
   artStyle: string;
   panels: ScenePanel[];
 };
+
+export type ValidationResult = {
+  isValid: boolean;
+  score: number;
+  feedback: string[];
+  improvements: string[];
+  correctedPanels: ComicPanel[];
+};
