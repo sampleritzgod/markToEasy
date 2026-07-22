@@ -21,6 +21,9 @@
 # generated comic images
 /public/generated/
 
+# lesson asset cache
+/.cache/
+
 # misc
 .DS_Store
 *.pem
