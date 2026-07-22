@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseComicPlan } from "./comic-planner";
+import { clampDialogue, parseComicPlan } from "./comic-planner";
 
 function makePanel(id: number) {
   return {
@@ -69,15 +69,25 @@ describe("parseComicPlan", () => {
     );
   });
 
-  it("rejects dialogue with more than 2 sentences", () => {
+  it("clamps dialogue to at most 2 sentences instead of failing", () => {
     const panels = Array.from({ length: 6 }, (_, i) => makePanel(i + 1));
     panels[0].dialogue = "One. Two. Three.";
-    expect(() => parseComicPlan({ title: "Chatty", panels })).toThrow(
-      /dialogue exceeds 2 sentences/,
-    );
+    const plan = parseComicPlan({ title: "Chatty", panels });
+    expect(plan.panels[0].dialogue).toBe("One. Two.");
   });
 
   it("rejects missing panels array", () => {
     expect(() => parseComicPlan({ title: "No panels" })).toThrow(/panels/);
+  });
+});
+
+describe("clampDialogue", () => {
+  it("returns empty for blank input", () => {
+    expect(clampDialogue("")).toBe("");
+    expect(clampDialogue("   ")).toBe("");
+  });
+
+  it("keeps short dialogue unchanged", () => {
+    expect(clampDialogue("Hello there!")).toBe("Hello there!");
   });
 });

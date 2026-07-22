@@ -48,12 +48,22 @@ function asOptionalTrimmedString(value: unknown, field: string): string {
   return value.trim();
 }
 
-function countSentences(text: string): number {
+/** Keep at most max sentences; models often overshoot the dialogue limit. */
+export function clampDialogue(
+  text: string,
+  maxSentences: number = MAX_DIALOGUE_SENTENCES,
+): string {
   const trimmed = text.trim();
   if (!trimmed) {
-    return 0;
+    return "";
   }
-  return trimmed.split(/(?<=[.!?])\s+/).filter(Boolean).length;
+
+  const sentences = trimmed.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (sentences.length <= maxSentences) {
+    return trimmed;
+  }
+
+  return sentences.slice(0, maxSentences).join(" ").trim();
 }
 
 function assertValidStory(story: Story): void {
@@ -96,13 +106,7 @@ function parsePanel(raw: unknown, expectedId: number): ComicPanel {
     );
   }
 
-  const dialogue = asOptionalTrimmedString(data.dialogue, "dialogue");
-  const sentenceCount = countSentences(dialogue);
-  if (sentenceCount > MAX_DIALOGUE_SENTENCES) {
-    throw new Error(
-      `Invalid comic plan: panel ${id} dialogue exceeds ${MAX_DIALOGUE_SENTENCES} sentences`,
-    );
-  }
+  const dialogue = clampDialogue(asOptionalTrimmedString(data.dialogue, "dialogue"));
 
   return {
     id,
