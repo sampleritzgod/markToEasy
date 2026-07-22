@@ -228,3 +228,25 @@ export type AdaptationSession = {
   comicPlan: ComicPlan;
   conversationContext?: ConversationContext | null;
 };
+
+export type RoadmapNextTopic = {
+  title: string;
+  reason: string;
+  difficulty: LearningDifficulty;
+};
+
+export type LearningRoadmap = {
+  currentTopic: string;
+  completedConcepts: string[];
+  nextTopics: RoadmapNextTopic[];
+  estimatedLearningTime: string;
+};
+
+export type RoadmapSession = {
+  currentLesson: {
+    topic: string;
+    title?: string;
+  };
+  concepts: ConceptExtraction;
+  conversationHistory?: ConversationMessage[];
+};

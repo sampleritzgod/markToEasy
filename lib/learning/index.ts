@@ -34,6 +34,10 @@ export {
 } from "./learning-validator";
 export { planLearning, parseLearningPlan } from "./planner";
 export { generateQuiz, parseQuiz } from "./quiz-generator";
+export {
+  generateRoadmap,
+  parseLearningRoadmap,
+} from "./roadmap-generator";
 export { buildScenes, parseScenePlan } from "./scene-consistency";
 export {
   LearningSessionValidationError,
@@ -65,6 +69,7 @@ export {
   type ImagePromptStyle,
   type LearningDifficulty,
   type LearningPlan,
+  type LearningRoadmap,
   type LearningSession,
   type LearningStyle,
   type LearningStyleId,
@@ -75,6 +80,8 @@ export {
   type RegenerateTarget,
   type RenderedComic,
   type RenderedPanel,
+  type RoadmapNextTopic,
+  type RoadmapSession,
   type ScenePanel,
   type ScenePlan,
   type Story,
