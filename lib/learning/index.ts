@@ -5,6 +5,8 @@ export {
 export { generateComicPlan, parseComicPlan } from "./comic-planner";
 export {
   LocalImageStorage,
+  DataUrlImageStorage,
+  createDefaultImageStorage,
   renderComic,
   type ImageStorage,
   type ImageStorageSaveInput,

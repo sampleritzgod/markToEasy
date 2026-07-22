@@ -88,6 +88,24 @@ export class LocalImageStorage implements ImageStorage {
   }
 }
 
+/** Inlines images as data URLs — required on Vercel (read-only FS except /tmp). */
+export class DataUrlImageStorage implements ImageStorage {
+  async save(input: ImageStorageSaveInput): Promise<ImageStorageSaveResult> {
+    return {
+      url: `data:${input.mimeType};base64,${input.bytes.toString("base64")}`,
+    };
+  }
+}
+
+export function createDefaultImageStorage(
+  storageDir: string = DEFAULT_STORAGE_DIR,
+): ImageStorage {
+  if (process.env.VERCEL || process.env.USE_DATA_URL_IMAGES === "1") {
+    return new DataUrlImageStorage();
+  }
+  return new LocalImageStorage(storageDir);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -177,7 +195,8 @@ export async function renderComic(
   const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
   const provider = options.provider ?? createImageProvider("openai");
   const storage =
-    options.storage ?? new LocalImageStorage(options.storageDir ?? DEFAULT_STORAGE_DIR);
+    options.storage ??
+    createDefaultImageStorage(options.storageDir ?? DEFAULT_STORAGE_DIR);
   const comicId = randomUUID();
   const title = options.title ?? options.comicPlan?.title ?? "Untitled Comic";
 

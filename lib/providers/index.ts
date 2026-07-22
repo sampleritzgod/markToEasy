@@ -3,6 +3,7 @@ export {
   FluxImageProvider,
   GeminiImageProvider,
   OpenAIImageProvider,
+  isGptImageModel,
   type CreateImageProviderOptions,
   type GenerateImageInput,
   type GenerateImageResult,

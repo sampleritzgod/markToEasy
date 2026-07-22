@@ -120,4 +120,18 @@ describe("renderComic", () => {
     expect(comic.panels[0].narration).toBe("n1");
     expect(comic.panels[1].learningPoint).toBe("lp2");
   });
+
+  it("DataUrlImageStorage returns inline data URLs", async () => {
+    const { DataUrlImageStorage } = await import("./comic-renderer");
+    const storage = new DataUrlImageStorage();
+    const saved = await storage.save({
+      bytes: Buffer.from("hello"),
+      mimeType: "image/png",
+      panelId: 1,
+      comicId: "abc",
+    });
+    expect(saved.url).toBe(
+      `data:image/png;base64,${Buffer.from("hello").toString("base64")}`,
+    );
+  });
 });

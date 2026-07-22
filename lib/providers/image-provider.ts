@@ -24,7 +24,24 @@ export type ImageProviderName = "openai" | "gemini" | "flux";
 export type CreateImageProviderOptions = {
   apiKey?: string;
   model?: string;
+  /** GPT Image models only: low | medium | high | auto */
+  quality?: "low" | "medium" | "high" | "auto";
+  size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
 };
+
+/** GPT Image models reject `response_format` and always return `b64_json`. */
+export function isGptImageModel(model: string): boolean {
+  return model.startsWith("gpt-image") || model.includes("chatgpt-image");
+}
+
+function resolveOpenAIImageModel(override?: string): string {
+  return (
+    override ??
+    process.env.OPENAI_IMAGE_MODEL ??
+    // Current OpenAI accounts expose gpt-image-*; dall-e-3 is often unavailable.
+    "gpt-image-1-mini"
+  );
+}
 
 function requireApiKey(envName: string, override?: string): string {
   const apiKey = override ?? process.env[envName];
@@ -54,21 +71,50 @@ export class OpenAIImageProvider implements ImageProvider {
       apiKey: requireApiKey("OPENAI_API_KEY", this.options.apiKey),
     });
 
-    const model = this.options.model ?? "dall-e-3";
-    const response = await client.images.generate({
+    const model = resolveOpenAIImageModel(this.options.model);
+    const size = this.options.size ?? "1024x1024";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK params differ by model family
+    const params: Record<string, any> = {
       model,
       prompt: input.prompt,
       n: 1,
-      size: "1024x1024",
-      response_format: "b64_json",
-    });
+      size,
+    };
 
-    const b64 = response.data?.[0]?.b64_json;
-    if (!b64) {
-      throw new Error("OpenAI returned no image data");
+    if (isGptImageModel(model)) {
+      params.quality =
+        this.options.quality ??
+        (process.env.OPENAI_IMAGE_QUALITY as CreateImageProviderOptions["quality"]) ??
+        "low";
+    } else {
+      // dall-e-2 / dall-e-3 only
+      params.response_format = "b64_json";
     }
 
-    return decodeBase64Image(b64, "image/png");
+    const response = await client.images.generate(params);
+    const item = response.data?.[0];
+    if (item?.b64_json) {
+      return decodeBase64Image(item.b64_json, "image/png");
+    }
+
+    if (item?.url) {
+      const imageResponse = await fetch(item.url);
+      if (!imageResponse.ok) {
+        throw new Error(
+          `Failed to download OpenAI image (${imageResponse.status})`,
+        );
+      }
+      const mimeType =
+        imageResponse.headers.get("content-type") ?? "image/png";
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      return {
+        bytes: Buffer.from(arrayBuffer),
+        mimeType,
+      };
+    }
+
+    throw new Error("OpenAI returned no image data");
   }
 }
 
