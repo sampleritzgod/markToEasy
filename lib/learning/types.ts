@@ -72,3 +72,31 @@ export type RenderedComic = {
   style: string;
   panels: RenderedPanel[];
 };
+
+export type CharacterBibleCharacter = {
+  id: string;
+  name: string;
+  role: string;
+  age: string;
+  gender: string;
+  appearance: string;
+  hairstyle: string;
+  clothing: string;
+  accessories: string;
+  personality: string;
+  facialFeatures: string;
+  colorPalette: string;
+};
+
+export type CharacterBibleEnvironment = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type CharacterBible = {
+  characters: CharacterBibleCharacter[];
+  environments: CharacterBibleEnvironment[];
+  artStyle: string;
+  negativePrompt: string;
+};

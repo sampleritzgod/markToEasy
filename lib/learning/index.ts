@@ -1,3 +1,7 @@
+export {
+  generateCharacterBible,
+  parseCharacterBible,
+} from "./character-bible";
 export { generateComicPlan, parseComicPlan } from "./comic-planner";
 export {
   LocalImageStorage,
@@ -18,6 +22,9 @@ export {
   IMAGE_PROMPT_STYLE,
   LEARNING_DIFFICULTIES,
   LEARNING_STYLE,
+  type CharacterBible,
+  type CharacterBibleCharacter,
+  type CharacterBibleEnvironment,
   type ComicPanel,
   type ComicPlan,
   type ImagePromptPanel,
