@@ -13,6 +13,10 @@ export {
   type RenderComicOptions,
 } from "./comic-renderer";
 export {
+  extractConcepts,
+  parseConceptExtraction,
+} from "./concept-extractor";
+export {
   generateImagePrompts,
   parseImagePromptPlan,
 } from "./image-prompt-generator";
@@ -34,6 +38,7 @@ export {
   type CharacterBibleEnvironment,
   type ComicPanel,
   type ComicPlan,
+  type ConceptExtraction,
   type ImagePromptPanel,
   type ImagePromptPlan,
   type ImagePromptStyle,

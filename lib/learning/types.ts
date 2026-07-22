@@ -143,3 +143,10 @@ export type ValidationResult = {
   improvements: string[];
   correctedPanels: ComicPanel[];
 };
+
+export type ConceptExtraction = {
+  topic: string;
+  concepts: string[];
+  prerequisites: string[];
+  advancedTopics: string[];
+};
