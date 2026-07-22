@@ -1,0 +1,226 @@
+/**
+ * Provider-agnostic image generation contract.
+ * Add a new model by implementing ImageProvider — the comic renderer does not change.
+ */
+
+export type GenerateImageInput = {
+  prompt: string;
+  panelId: number;
+  style?: string;
+};
+
+export type GenerateImageResult = {
+  bytes: Buffer;
+  mimeType: string;
+};
+
+export interface ImageProvider {
+  readonly id: string;
+  generateImage(input: GenerateImageInput): Promise<GenerateImageResult>;
+}
+
+export type ImageProviderName = "openai" | "gemini" | "flux";
+
+export type CreateImageProviderOptions = {
+  apiKey?: string;
+  model?: string;
+};
+
+function requireApiKey(envName: string, override?: string): string {
+  const apiKey = override ?? process.env[envName];
+  if (!apiKey) {
+    throw new Error(`${envName} is not set`);
+  }
+  return apiKey;
+}
+
+function decodeBase64Image(data: string, mimeType: string): GenerateImageResult {
+  return {
+    bytes: Buffer.from(data, "base64"),
+    mimeType,
+  };
+}
+
+export class OpenAIImageProvider implements ImageProvider {
+  readonly id = "openai";
+
+  constructor(
+    private readonly options: CreateImageProviderOptions = {},
+  ) {}
+
+  async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
+    const OpenAI = (await import("openai")).default;
+    const client = new OpenAI({
+      apiKey: requireApiKey("OPENAI_API_KEY", this.options.apiKey),
+    });
+
+    const model = this.options.model ?? "dall-e-3";
+    const response = await client.images.generate({
+      model,
+      prompt: input.prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json",
+    });
+
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) {
+      throw new Error("OpenAI returned no image data");
+    }
+
+    return decodeBase64Image(b64, "image/png");
+  }
+}
+
+export class GeminiImageProvider implements ImageProvider {
+  readonly id = "gemini";
+
+  constructor(
+    private readonly options: CreateImageProviderOptions = {},
+  ) {}
+
+  async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
+    const apiKey = requireApiKey("GEMINI_API_KEY", this.options.apiKey);
+    const model = this.options.model ?? "imagen-3.0-generate-002";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instances: [{ prompt: input.prompt }],
+        parameters: { sampleCount: 1 },
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Gemini image generation failed (${response.status}): ${body}`);
+    }
+
+    const json = (await response.json()) as {
+      predictions?: Array<{ bytesBase64Encoded?: string; mimeType?: string }>;
+    };
+    const prediction = json.predictions?.[0];
+    const b64 = prediction?.bytesBase64Encoded;
+    if (!b64) {
+      throw new Error("Gemini returned no image data");
+    }
+
+    return decodeBase64Image(b64, prediction.mimeType ?? "image/png");
+  }
+}
+
+export class FluxImageProvider implements ImageProvider {
+  readonly id = "flux";
+
+  constructor(
+    private readonly options: CreateImageProviderOptions = {},
+  ) {}
+
+  async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
+    const apiKey = requireApiKey("FLUX_API_KEY", this.options.apiKey);
+    const model = this.options.model ?? "flux-pro-1.1";
+    const createUrl = `https://api.bfl.ai/v1/${model}`;
+
+    const createResponse = await fetch(createUrl, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "x-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt: input.prompt,
+        width: 1024,
+        height: 1024,
+      }),
+    });
+
+    if (!createResponse.ok) {
+      const body = await createResponse.text();
+      throw new Error(`Flux image creation failed (${createResponse.status}): ${body}`);
+    }
+
+    const created = (await createResponse.json()) as {
+      id?: string;
+      polling_url?: string;
+    };
+
+    const pollingUrl = created.polling_url;
+    if (!pollingUrl) {
+      throw new Error("Flux returned no polling URL");
+    }
+
+    const imageUrl = await this.pollForResult(pollingUrl, apiKey);
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download Flux image (${imageResponse.status})`);
+    }
+
+    const mimeType = imageResponse.headers.get("content-type") ?? "image/jpeg";
+    const arrayBuffer = await imageResponse.arrayBuffer();
+
+    return {
+      bytes: Buffer.from(arrayBuffer),
+      mimeType,
+    };
+  }
+
+  private async pollForResult(pollingUrl: string, apiKey: string): Promise<string> {
+    const maxAttempts = 30;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const response = await fetch(pollingUrl, {
+        headers: {
+          accept: "application/json",
+          "x-key": apiKey,
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Flux polling failed (${response.status}): ${body}`);
+      }
+
+      const json = (await response.json()) as {
+        status?: string;
+        result?: { sample?: string };
+      };
+
+      if (json.status === "Ready" && json.result?.sample) {
+        return json.result.sample;
+      }
+
+      if (json.status === "Error" || json.status === "Failed") {
+        throw new Error(`Flux generation failed with status: ${json.status}`);
+      }
+
+      await sleep(1000);
+    }
+
+    throw new Error("Flux generation timed out");
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function createImageProvider(
+  name: ImageProviderName,
+  options: CreateImageProviderOptions = {},
+): ImageProvider {
+  switch (name) {
+    case "openai":
+      return new OpenAIImageProvider(options);
+    case "gemini":
+      return new GeminiImageProvider(options);
+    case "flux":
+      return new FluxImageProvider(options);
+    default: {
+      const exhaustive: never = name;
+      throw new Error(`Unsupported image provider: ${String(exhaustive)}`);
+    }
+  }
+}

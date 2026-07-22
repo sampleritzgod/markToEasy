@@ -18,6 +18,9 @@
 # production
 /build
 
+# generated comic images
+/public/generated/
+
 # misc
 .DS_Store
 *.pem
