@@ -17,6 +17,7 @@ export {
   parseImagePromptPlan,
 } from "./image-prompt-generator";
 export { planLearning, parseLearningPlan } from "./planner";
+export { buildScenes, parseScenePlan } from "./scene-consistency";
 export { generateStory, parseStory } from "./story-generator";
 export {
   IMAGE_PROMPT_STYLE,
@@ -36,5 +37,7 @@ export {
   type PlanLearningInput,
   type RenderedComic,
   type RenderedPanel,
+  type ScenePanel,
+  type ScenePlan,
   type Story,
 } from "./types";

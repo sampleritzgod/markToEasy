@@ -100,3 +100,20 @@ export type CharacterBible = {
   artStyle: string;
   negativePrompt: string;
 };
+
+export type ScenePanel = {
+  id: number;
+  sceneDescription: string;
+  characters: string[];
+  environment: string;
+  imageContext: string;
+  narration: string;
+  dialogue: string;
+  learningPoint: string;
+};
+
+export type ScenePlan = {
+  title: string;
+  artStyle: string;
+  panels: ScenePanel[];
+};
