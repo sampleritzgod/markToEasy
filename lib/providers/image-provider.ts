@@ -73,26 +73,21 @@ export class OpenAIImageProvider implements ImageProvider {
 
     const model = resolveOpenAIImageModel(this.options.model);
     const size = this.options.size ?? "1024x1024";
+    const quality =
+      this.options.quality ??
+      (process.env.OPENAI_IMAGE_QUALITY as CreateImageProviderOptions["quality"]) ??
+      "low";
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK params differ by model family
-    const params: Record<string, any> = {
+    // GPT Image and DALL·E accept different optional fields; cast at the boundary.
+    const response = await client.images.generate({
       model,
       prompt: input.prompt,
       n: 1,
       size,
-    };
-
-    if (isGptImageModel(model)) {
-      params.quality =
-        this.options.quality ??
-        (process.env.OPENAI_IMAGE_QUALITY as CreateImageProviderOptions["quality"]) ??
-        "low";
-    } else {
-      // dall-e-2 / dall-e-3 only
-      params.response_format = "b64_json";
-    }
-
-    const response = await client.images.generate(params);
+      ...(isGptImageModel(model)
+        ? { quality }
+        : { response_format: "b64_json" as const }),
+    } as Parameters<typeof client.images.generate>[0]);
     const item = response.data?.[0];
     if (item?.b64_json) {
       return decodeBase64Image(item.b64_json, "image/png");
