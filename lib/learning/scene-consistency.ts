@@ -1,11 +1,16 @@
-import OpenAI from "openai";
-
 import type {
   CharacterBible,
   ComicPlan,
   ScenePanel,
   ScenePlan,
 } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 
@@ -40,35 +45,11 @@ Rules:
   ]
 }`;
 
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid scene plan: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function asStringArray(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid scene plan: "${field}" must be an array`);
-  }
-
-  const items = value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
+function asNonEmptyStringList(value: unknown, field: string): string[] {
+  const items = asStringList(value, field, "scene plan");
   if (items.length === 0) {
     throw new Error(`Invalid scene plan: "${field}" must contain at least one item`);
   }
-
   return items;
 }
 
@@ -119,7 +100,7 @@ function parsePanel(
     );
   }
 
-  const characters = asStringArray(data.characters, `panels[${id}].characters`);
+  const characters = asNonEmptyStringList(data.characters, `panels[${id}].characters`);
   for (const characterId of characters) {
     if (!knownCharacterIds.has(characterId)) {
       throw new Error(
@@ -128,12 +109,17 @@ function parsePanel(
     }
   }
 
-  const narration = asNonEmptyString(data.narration, `panels[${id}].narration`);
+  const narration = asNonEmptyString(
+    data.narration,
+    `panels[${id}].narration`,
+    "scene plan",
+  );
   const dialogue =
     typeof data.dialogue === "string" ? data.dialogue.trim() : "";
   const learningPoint = asNonEmptyString(
     data.learningPoint,
     `panels[${id}].learningPoint`,
+    "scene plan",
   );
 
   if (narration !== expected.narration.trim()) {
@@ -149,6 +135,7 @@ function parsePanel(
   const imageContext = asNonEmptyString(
     data.imageContext,
     `panels[${id}].imageContext`,
+    "scene plan",
   );
 
   return {
@@ -156,9 +143,14 @@ function parsePanel(
     sceneDescription: asNonEmptyString(
       data.sceneDescription,
       `panels[${id}].sceneDescription`,
+      "scene plan",
     ),
     characters,
-    environment: asNonEmptyString(data.environment, `panels[${id}].environment`),
+    environment: asNonEmptyString(
+      data.environment,
+      `panels[${id}].environment`,
+      "scene plan",
+    ),
     imageContext,
     narration,
     dialogue,
@@ -176,8 +168,8 @@ export function parseScenePlan(
   }
 
   const data = raw as Record<string, unknown>;
-  const title = asNonEmptyString(data.title, "title");
-  const artStyle = asNonEmptyString(data.artStyle, "artStyle");
+  const title = asNonEmptyString(data.title, "title", "scene plan");
+  const artStyle = asNonEmptyString(data.artStyle, "artStyle", "scene plan");
 
   if (artStyle !== characterBible.artStyle.trim()) {
     throw new Error("Invalid scene plan: artStyle must match the character bible");
@@ -211,7 +203,7 @@ export async function buildScenes(
   assertValidCharacterBible(characterBible);
   assertValidComicPlan(comicPlan);
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
@@ -239,17 +231,13 @@ ${formatComicPlan(comicPlan)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No scene plan returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse scene plan JSON");
-  }
-
-  return parseScenePlan(parsed, comicPlan, characterBible);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "scene plan",
+  );
+  return parseScenePlan(
+    parseModelJson(content, "scene plan"),
+    comicPlan,
+    characterBible,
+  );
 }

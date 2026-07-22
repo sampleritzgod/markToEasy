@@ -13,6 +13,7 @@ import {
   ComicRenderIncompleteError,
   summarizeRenderFailures,
 } from "./render-failures";
+import { generateRoadmap } from "./roadmap-generator";
 import { buildScenes } from "./scene-consistency";
 import { generateStory } from "./story-generator";
 import {
@@ -163,7 +164,7 @@ export async function runLearningSession(
     initialComicPlan,
   );
 
-  // Quiz does not depend on images/scenes — overlap with scene + image work.
+  // Quiz + roadmap do not depend on images — overlap with scene/image work.
   const scenePlanPromise = runStep("Scene Consistency Engine", () =>
     buildScenes(characterBible, comicPlan),
   );
@@ -174,6 +175,15 @@ export async function runLearningSession(
       comicPlan,
     }),
   );
+  const roadmapPromise = runStep("Roadmap Generator", () =>
+    generateRoadmap({
+      currentLesson: {
+        topic: learningPlan.topic,
+        title: story.title,
+      },
+      concepts,
+    }),
+  );
 
   const scenePlan = await scenePlanPromise;
 
@@ -181,7 +191,7 @@ export async function runLearningSession(
     generateImagePrompts(comicPlan, { scenePlan, characterBible }),
   );
 
-  const [renderedComic, quiz] = await Promise.all([
+  const [renderedComic, quiz, roadmap] = await Promise.all([
     runStep("Comic Renderer", () =>
       renderComic(imagePrompts, {
         title: story.title,
@@ -189,6 +199,7 @@ export async function runLearningSession(
       }),
     ),
     quizPromise,
+    roadmapPromise,
   ]);
 
   const renderSummary = summarizeRenderFailures(renderedComic);
@@ -212,6 +223,7 @@ export async function runLearningSession(
     imagePrompts,
     renderedComic,
     quiz,
+    roadmap,
   };
 
   if (!bypassCache) {

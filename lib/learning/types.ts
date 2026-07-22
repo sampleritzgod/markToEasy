@@ -180,6 +180,7 @@ export type LearningSession = {
   imagePrompts: ImagePromptPlan;
   renderedComic: RenderedComic;
   quiz: Quiz;
+  roadmap: LearningRoadmap;
 };
 
 export type ConversationMessage = {

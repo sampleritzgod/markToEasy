@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronUp, ImageOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { RenderedPanel } from "@/lib/learning";
+import type { RenderedPanel } from "@/lib/learning/types";
 import { cn } from "@/lib/utils";
 
 type ComicPanelProps = {

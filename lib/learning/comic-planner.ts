@@ -1,6 +1,10 @@
-import OpenAI from "openai";
-
 import type { ComicPanel, ComicPlan, Story } from "./types";
+import {
+  asNonEmptyString,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const MIN_PANELS = 6;
@@ -33,21 +37,6 @@ Rules:
     }
   ]
 }`;
-
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid comic plan: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
 
 function asOptionalTrimmedString(value: unknown, field: string): string {
   if (value === undefined || value === null) {
@@ -117,11 +106,15 @@ function parsePanel(raw: unknown, expectedId: number): ComicPanel {
 
   return {
     id,
-    scene: asNonEmptyString(data.scene, "scene"),
-    narration: asNonEmptyString(data.narration, "narration"),
+    scene: asNonEmptyString(data.scene, "scene", "comic plan"),
+    narration: asNonEmptyString(data.narration, "narration", "comic plan"),
     dialogue,
-    visualDescription: asNonEmptyString(data.visualDescription, "visualDescription"),
-    learningPoint: asNonEmptyString(data.learningPoint, "learningPoint"),
+    visualDescription: asNonEmptyString(
+      data.visualDescription,
+      "visualDescription",
+      "comic plan",
+    ),
+    learningPoint: asNonEmptyString(data.learningPoint, "learningPoint", "comic plan"),
   };
 }
 
@@ -131,7 +124,7 @@ export function parseComicPlan(raw: unknown): ComicPlan {
   }
 
   const data = raw as Record<string, unknown>;
-  const title = asNonEmptyString(data.title, "title");
+  const title = asNonEmptyString(data.title, "title", "comic plan");
 
   if (!Array.isArray(data.panels)) {
     throw new Error('Invalid comic plan: "panels" must be an array');
@@ -151,7 +144,7 @@ export function parseComicPlan(raw: unknown): ComicPlan {
 export async function generateComicPlan(story: Story): Promise<ComicPlan> {
   assertValidStory(story);
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.4,
@@ -172,17 +165,9 @@ ${formatStory(story)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No comic plan returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse comic plan JSON");
-  }
-
-  return parseComicPlan(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "comic plan",
+  );
+  return parseComicPlan(parseModelJson(content, "comic plan"));
 }

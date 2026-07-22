@@ -1,11 +1,15 @@
-import OpenAI from "openai";
-
 import {
   LEARNING_STYLES,
   type LearningPlan,
   type LearningStyle,
   type LearningStyleId,
 } from "./types";
+import {
+  asNonEmptyString,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const MIN_CONFIDENCE = 0;
@@ -41,26 +45,11 @@ Rules:
   "alternatives": string[]
 }`;
 
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
 function isLearningStyleId(value: unknown): value is LearningStyleId {
   return (
     typeof value === "string" &&
     (LEARNING_STYLES as readonly string[]).includes(value)
   );
-}
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid learning style: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
 }
 
 function asConfidence(value: unknown): number {
@@ -134,7 +123,7 @@ export function parseLearningStyle(raw: unknown): LearningStyle {
   return {
     selectedStyle,
     confidence: asConfidence(data.confidence),
-    reason: asNonEmptyString(data.reason, "reason"),
+    reason: asNonEmptyString(data.reason, "reason", "learning style"),
     alternatives: asAlternatives(data.alternatives, selectedStyle),
   };
 }
@@ -149,7 +138,7 @@ export async function selectLearningStyle(
   }
   assertValidPlan(learningPlan);
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
@@ -169,17 +158,9 @@ ${JSON.stringify(learningPlan, null, 2)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No learning style returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse learning style JSON");
-  }
-
-  return parseLearningStyle(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "learning style",
+  );
+  return parseLearningStyle(parseModelJson(content, "learning style"));
 }

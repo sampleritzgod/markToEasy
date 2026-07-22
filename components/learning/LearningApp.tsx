@@ -7,7 +7,11 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { LearningViewer } from "@/components/learning/LearningViewer";
 import { Button } from "@/components/ui/button";
-import type { LearningSession, ValidationResult } from "@/lib/learning";
+import type {
+  Adaptation,
+  LearningSession,
+  ValidationResult,
+} from "@/lib/learning/types";
 
 type GenerateState =
   | { status: "idle" }
@@ -19,11 +23,11 @@ type GenerateState =
 export function LearningApp() {
   const { data: authSession, status: authStatus } = useSession();
   const [question, setQuestion] = useState("");
+  const [lastQuestion, setLastQuestion] = useState("");
   const [state, setState] = useState<GenerateState>({ status: "idle" });
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    const trimmed = question.trim();
+  async function generateLesson(rawQuestion: string) {
+    const trimmed = rawQuestion.trim();
     if (!trimmed || state.status === "loading") return;
 
     if (!authSession) {
@@ -31,6 +35,8 @@ export function LearningApp() {
       return;
     }
 
+    setLastQuestion(trimmed);
+    setQuestion(trimmed);
     setState({ status: "loading" });
 
     try {
@@ -93,8 +99,29 @@ export function LearningApp() {
     }
   }
 
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    await generateLesson(question);
+  }
+
   function handleReset() {
     setState({ status: "idle" });
+  }
+
+  function handleSelectNextTopic(title: string) {
+    const next = `Explain ${title} as a beginner-friendly educational comic lesson.`;
+    setQuestion(next);
+    setState({ status: "idle" });
+    void generateLesson(next);
+  }
+
+  function handleApplyAdaptation(adaptation: Adaptation) {
+    const base = lastQuestion || question || "Continue this lesson";
+    const next = `${base}
+
+Adaptation (${adaptation.adaptationType}): ${adaptation.updatedInstructions}
+Regenerate modules: ${adaptation.regenerate.join(", ")}.`;
+    void generateLesson(next);
   }
 
   if (state.status === "ready") {
@@ -119,6 +146,9 @@ export function LearningApp() {
           comicPlan={session.comicPlan}
           renderedComic={session.renderedComic}
           quiz={session.quiz}
+          roadmap={session.roadmap}
+          onSelectNextTopic={handleSelectNextTopic}
+          onApplyAdaptation={handleApplyAdaptation}
         />
       </div>
     );

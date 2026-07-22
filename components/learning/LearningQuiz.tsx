@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { Quiz, QuizQuestion } from "@/lib/learning";
+import type { Quiz, QuizQuestion } from "@/lib/learning/types";
 import { cn } from "@/lib/utils";
 
 type LearningQuizProps = {

@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 import {
   LEARNING_DIFFICULTIES,
   type LearningDifficulty,
@@ -7,6 +5,13 @@ import {
   type RoadmapNextTopic,
   type RoadmapSession,
 } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const MIN_NEXT_TOPICS = 3;
@@ -36,24 +41,6 @@ Rules:
   "estimatedLearningTime": string
 }`;
 
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid learning roadmap: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function asStringList(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid learning roadmap: "${field}" must be an array`);
-  }
-
-  return value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function isDifficulty(value: unknown): value is LearningDifficulty {
   return (
     typeof value === "string" &&
@@ -74,8 +61,16 @@ function parseNextTopic(raw: unknown, index: number): RoadmapNextTopic {
   }
 
   return {
-    title: asNonEmptyString(data.title, `nextTopics[${index}].title`),
-    reason: asNonEmptyString(data.reason, `nextTopics[${index}].reason`),
+    title: asNonEmptyString(
+      data.title,
+      `nextTopics[${index}].title`,
+      "learning roadmap",
+    ),
+    reason: asNonEmptyString(
+      data.reason,
+      `nextTopics[${index}].reason`,
+      "learning roadmap",
+    ),
     difficulty: data.difficulty,
   };
 }
@@ -109,12 +104,21 @@ export function parseLearningRoadmap(raw: unknown): LearningRoadmap {
   }
 
   return {
-    currentTopic: asNonEmptyString(data.currentTopic, "currentTopic"),
-    completedConcepts: asStringList(data.completedConcepts, "completedConcepts"),
+    currentTopic: asNonEmptyString(
+      data.currentTopic,
+      "currentTopic",
+      "learning roadmap",
+    ),
+    completedConcepts: asStringList(
+      data.completedConcepts,
+      "completedConcepts",
+      "learning roadmap",
+    ),
     nextTopics: data.nextTopics.map((topic, index) => parseNextTopic(topic, index)),
     estimatedLearningTime: asNonEmptyString(
       data.estimatedLearningTime,
       "estimatedLearningTime",
+      "learning roadmap",
     ),
   };
 }
@@ -124,12 +128,7 @@ export async function generateRoadmap(
 ): Promise<LearningRoadmap> {
   assertValidSession(session);
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
-  const client = new OpenAI({ apiKey });
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.3,
@@ -152,17 +151,9 @@ ${JSON.stringify(session.conversationHistory ?? [], null, 2)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No learning roadmap returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse learning roadmap JSON");
-  }
-
-  return parseLearningRoadmap(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "learning roadmap",
+  );
+  return parseLearningRoadmap(parseModelJson(content, "learning roadmap"));
 }

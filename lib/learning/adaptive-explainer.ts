@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 import {
   ADAPTATION_TYPES,
   REGENERATE_TARGETS,
@@ -8,6 +6,12 @@ import {
   type AdaptationType,
   type RegenerateTarget,
 } from "./types";
+import {
+  asNonEmptyString,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 
@@ -39,13 +43,6 @@ Rules:
   "updatedInstructions": string,
   "regenerate": string[]
 }`;
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid adaptation: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
 
 function isAdaptationType(value: unknown): value is AdaptationType {
   return (
@@ -115,6 +112,7 @@ export function parseAdaptation(raw: unknown): Adaptation {
     updatedInstructions: asNonEmptyString(
       data.updatedInstructions,
       "updatedInstructions",
+      "adaptation",
     ),
     regenerate,
   };
@@ -130,12 +128,7 @@ export async function adaptExplanation(
   }
   assertValidSession(session);
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
-  const client = new OpenAI({ apiKey });
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
@@ -179,17 +172,9 @@ ${JSON.stringify(
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No adaptation returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse adaptation JSON");
-  }
-
-  return parseAdaptation(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "adaptation",
+  );
+  return parseAdaptation(parseModelJson(content, "adaptation"));
 }

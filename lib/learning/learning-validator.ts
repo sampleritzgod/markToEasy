@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 import type {
   ComicPanel,
   ComicPlan,
@@ -7,6 +5,13 @@ import type {
   Story,
   ValidationResult,
 } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 const MIN_SCORE = 0;
@@ -59,14 +64,6 @@ Rules:
   ]
 }`;
 
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
 function asBoolean(value: unknown, field: string): boolean {
   if (typeof value !== "boolean") {
     throw new Error(`Invalid validation result: "${field}" must be a boolean`);
@@ -87,24 +84,6 @@ function asScore(value: unknown): number {
   }
 
   return score;
-}
-
-function asStringList(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid validation result: "${field}" must be an array`);
-  }
-
-  return value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid validation result: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
 }
 
 function assertValidPlan(plan: LearningPlan): void {
@@ -162,20 +141,27 @@ function parseCorrectedPanel(
 
   const panel: ComicPanel = {
     id,
-    scene: asNonEmptyString(data.scene, `correctedPanels[${index}].scene`),
+    scene: asNonEmptyString(
+      data.scene,
+      `correctedPanels[${index}].scene`,
+      "validation result",
+    ),
     narration: asNonEmptyString(
       data.narration,
       `correctedPanels[${index}].narration`,
+      "validation result",
     ),
     dialogue:
       typeof data.dialogue === "string" ? data.dialogue.trim() : "",
     visualDescription: asNonEmptyString(
       data.visualDescription,
       `correctedPanels[${index}].visualDescription`,
+      "validation result",
     ),
     learningPoint: asNonEmptyString(
       data.learningPoint,
       `correctedPanels[${index}].learningPoint`,
+      "validation result",
     ),
   };
 
@@ -225,8 +211,12 @@ export function parseValidationResult(
   return {
     isValid: asBoolean(data.isValid, "isValid"),
     score: asScore(data.score),
-    feedback: asStringList(data.feedback, "feedback"),
-    improvements: asStringList(data.improvements, "improvements"),
+    feedback: asStringList(data.feedback, "feedback", "validation result"),
+    improvements: asStringList(
+      data.improvements,
+      "improvements",
+      "validation result",
+    ),
     correctedPanels,
   };
 }
@@ -240,7 +230,7 @@ export async function validateLearning(
   assertValidStory(story);
   assertValidComicPlan(comicPlan);
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.1,
@@ -266,17 +256,12 @@ ${JSON.stringify(comicPlan, null, 2)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No validation result returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse validation result JSON");
-  }
-
-  return parseValidationResult(parsed, comicPlan);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "validation result",
+  );
+  return parseValidationResult(
+    parseModelJson(content, "validation result"),
+    comicPlan,
+  );
 }

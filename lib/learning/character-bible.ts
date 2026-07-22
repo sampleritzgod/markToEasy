@@ -1,11 +1,15 @@
-import OpenAI from "openai";
-
 import type {
   CharacterBible,
   CharacterBibleCharacter,
   CharacterBibleEnvironment,
   Story,
 } from "./types";
+import {
+  asNonEmptyString,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 
@@ -64,21 +68,6 @@ Rules:
   "negativePrompt": string
 }`;
 
-function getClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return new OpenAI({ apiKey });
-}
-
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid character bible: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
 function assertValidStory(story: Story): void {
   if (!story?.title?.trim()) {
     throw new Error("Story title is required");
@@ -114,7 +103,11 @@ function parseCharacter(raw: unknown, index: number): CharacterBibleCharacter {
   const character = {} as CharacterBibleCharacter;
 
   for (const field of CHARACTER_FIELDS) {
-    character[field] = asNonEmptyString(data[field], `characters[${index}].${field}`);
+    character[field] = asNonEmptyString(
+      data[field],
+      `characters[${index}].${field}`,
+      "character bible",
+    );
   }
 
   return character;
@@ -128,9 +121,13 @@ function parseEnvironment(raw: unknown, index: number): CharacterBibleEnvironmen
   const data = raw as Record<string, unknown>;
 
   return {
-    id: asNonEmptyString(data.id, `environments[${index}].id`),
-    name: asNonEmptyString(data.name, `environments[${index}].name`),
-    description: asNonEmptyString(data.description, `environments[${index}].description`),
+    id: asNonEmptyString(data.id, `environments[${index}].id`, "character bible"),
+    name: asNonEmptyString(data.name, `environments[${index}].name`, "character bible"),
+    description: asNonEmptyString(
+      data.description,
+      `environments[${index}].description`,
+      "character bible",
+    ),
   };
 }
 
@@ -191,15 +188,19 @@ export function parseCharacterBible(raw: unknown): CharacterBible {
   return {
     characters,
     environments,
-    artStyle: asNonEmptyString(data.artStyle, "artStyle"),
-    negativePrompt: asNonEmptyString(data.negativePrompt, "negativePrompt"),
+    artStyle: asNonEmptyString(data.artStyle, "artStyle", "character bible"),
+    negativePrompt: asNonEmptyString(
+      data.negativePrompt,
+      "negativePrompt",
+      "character bible",
+    ),
   };
 }
 
 export async function generateCharacterBible(story: Story): Promise<CharacterBible> {
   assertValidStory(story);
 
-  const client = getClient();
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.3,
@@ -220,17 +221,9 @@ ${formatStory(story)}`,
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No character bible returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse character bible JSON");
-  }
-
-  return parseCharacterBible(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "character bible",
+  );
+  return parseCharacterBible(parseModelJson(content, "character bible"));
 }

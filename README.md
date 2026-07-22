@@ -1,6 +1,6 @@
 # MarkToEasy
 
-A simple AI chat app for course transcripts. Ask questions about your lessons and get answers with source citations.
+AI-powered course learning: transcript Q&A with citations, plus educational comic lessons with quiz and roadmap.
 
 **Live app:** [https://mark-to-easy.vercel.app/](https://mark-to-easy.vercel.app/)
 
@@ -8,16 +8,24 @@ A simple AI chat app for course transcripts. Ask questions about your lessons an
 
 ## What it does
 
+### Chat (home)
+
 - Search course subtitle files (`.srt` / `.vtt`)
 - Find the most relevant parts using AI
-- Generate a clear answer
-- Show **5 source chunks** with lesson name, timestamp, and chunk number
+- Generate a clear answer with **source citations**
+- Sign in with Google to save, rename, and delete chat history
+- Follow-ups are resolved against prior messages before search
 
-Sign in with Google to save your chat history.
+### Learning comics (`/learning`)
+
+- Plan a beginner-friendly comic lesson from a question
+- Generate story, panels, images, quiz, and a next-topics roadmap
+- Adapt the lesson (simpler / more technical / etc.) and regenerate
+- Results are cached locally for repeated questions
 
 ---
 
-## How it works
+## How chat works
 
 1. Subtitle files are read from `data/subtitles`
 2. Text is split into small chunks (~250 words)
@@ -30,9 +38,9 @@ Sign in with Google to save your chat history.
 ## Tech stack
 
 - **Next.js 15** — frontend and API
-- **OpenAI** — embeddings + answers
+- **OpenAI** — embeddings, answers, learning pipeline, images
 - **Qdrant** — vector search
-- **PostgreSQL (Neon)** — chat history
+- **PostgreSQL (Neon)** — chat history + Auth.js sessions
 - **Auth.js** — Google login
 
 ---
@@ -60,6 +68,14 @@ GOOGLE_CLIENT_SECRET=
 AUTH_URL=http://localhost:3000
 ```
 
+Optional:
+
+```env
+GEMINI_API_KEY=
+FLUX_API_KEY=
+LESSON_CACHE_DIR=.cache/lessons
+```
+
 ### 3. Database
 
 ```bash
@@ -76,15 +92,13 @@ Put your course subtitle files in `data/subtitles` (supports `.srt` and `.vtt`).
 npm run ingest
 ```
 
-This reads subtitles, creates chunks, and stores them in Qdrant.
-
 ### 6. Start the app
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000) for chat, or [http://localhost:3000/learning](http://localhost:3000/learning) for comics.
 
 ---
 
@@ -96,15 +110,17 @@ Open [http://localhost:3000](http://localhost:3000)
 | `npm run build` | Build for production |
 | `npm run ingest` | Load subtitles into Qdrant |
 | `npm run lint` | Run ESLint |
+| `npm test` | Run unit tests |
+| `npm run test:coverage` | Unit tests with coverage |
 
 ---
 
 ## Project structure
 
 ```
-app/           → Pages and API routes
-components/    → UI components
-lib/           → Parser, chunker, search, answer logic
+app/           → Pages and API routes (/api/chat, /api/learning, …)
+components/    → Chat UI, learning viewer, theme
+lib/           → Parser, chunker, search, answer, learning pipeline, cache
 scripts/       → Ingest script
 prisma/        → Database schema
 data/subtitles → Course subtitle files

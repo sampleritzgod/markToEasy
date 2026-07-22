@@ -1,10 +1,15 @@
-import OpenAI from "openai";
-
 import type {
   ConversationContext,
   ConversationHistory,
   LearningSession,
 } from "./types";
+import {
+  asNonEmptyString,
+  asStringList,
+  getOpenAIClient,
+  parseModelJson,
+  requireModelContent,
+} from "./shared";
 
 const MODEL = "gpt-4o-mini";
 
@@ -26,24 +31,6 @@ Rules:
   "contextSummary": string
 }`;
 
-function asNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`Invalid conversation context: "${field}" must be a non-empty string`);
-  }
-  return value.trim();
-}
-
-function asStringList(value: unknown, field: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid conversation context: "${field}" must be an array`);
-  }
-
-  return value
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function summarizeSession(session: LearningSession) {
   return {
     topic: session.learningPlan.topic,
@@ -63,10 +50,26 @@ export function parseConversationContext(raw: unknown): ConversationContext {
   const data = raw as Record<string, unknown>;
 
   return {
-    resolvedQuestion: asNonEmptyString(data.resolvedQuestion, "resolvedQuestion"),
-    currentTopic: asNonEmptyString(data.currentTopic, "currentTopic"),
-    referencedConcepts: asStringList(data.referencedConcepts, "referencedConcepts"),
-    contextSummary: asNonEmptyString(data.contextSummary, "contextSummary"),
+    resolvedQuestion: asNonEmptyString(
+      data.resolvedQuestion,
+      "resolvedQuestion",
+      "conversation context",
+    ),
+    currentTopic: asNonEmptyString(
+      data.currentTopic,
+      "currentTopic",
+      "conversation context",
+    ),
+    referencedConcepts: asStringList(
+      data.referencedConcepts,
+      "referencedConcepts",
+      "conversation context",
+    ),
+    contextSummary: asNonEmptyString(
+      data.contextSummary,
+      "contextSummary",
+      "conversation context",
+    ),
   };
 }
 
@@ -79,15 +82,10 @@ export async function resolveContext(
     throw new Error("Question is required");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-
   const messages = Array.isArray(history?.messages) ? history.messages : [];
   const previousSession = history?.previousSession ?? null;
 
-  const client = new OpenAI({ apiKey });
+  const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.1,
@@ -108,17 +106,9 @@ ${previousSession ? JSON.stringify(summarizeSession(previousSession), null, 2) :
     ],
   });
 
-  const content = response.choices[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("No conversation context returned from the model");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("Failed to parse conversation context JSON");
-  }
-
-  return parseConversationContext(parsed);
+  const content = requireModelContent(
+    response.choices[0]?.message?.content,
+    "conversation context",
+  );
+  return parseConversationContext(parseModelJson(content, "conversation context"));
 }

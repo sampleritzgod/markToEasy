@@ -4,17 +4,21 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ComicPanel } from "@/components/learning/ComicPanel";
+import { LearningAdaptPanel } from "@/components/learning/LearningAdaptPanel";
 import { LearningProgress } from "@/components/learning/LearningProgress";
 import { LearningQuiz } from "@/components/learning/LearningQuiz";
+import { LearningRoadmapPanel } from "@/components/learning/LearningRoadmapPanel";
 import { Button } from "@/components/ui/button";
 import type {
+  Adaptation,
   ComicPlan,
   LearningPlan,
+  LearningRoadmap,
   Quiz,
   RenderedComic,
   Story,
-} from "@/lib/learning";
-import { summarizeRenderFailures } from "@/lib/learning";
+} from "@/lib/learning/types";
+import { summarizeRenderFailures } from "@/lib/learning/render-failures";
 
 export type LearningViewerProps = {
   plan: LearningPlan;
@@ -22,6 +26,9 @@ export type LearningViewerProps = {
   comicPlan: ComicPlan;
   renderedComic: RenderedComic;
   quiz?: Quiz | null;
+  roadmap?: LearningRoadmap | null;
+  onSelectNextTopic?: (title: string) => void;
+  onApplyAdaptation?: (adaptation: Adaptation) => void;
 };
 
 export function LearningViewer({
@@ -30,11 +37,13 @@ export function LearningViewer({
   comicPlan,
   renderedComic,
   quiz,
+  roadmap,
+  onSelectNextTopic,
+  onApplyAdaptation,
 }: LearningViewerProps) {
   const panels = useMemo(() => {
     const byId = new Map(renderedComic.panels.map((panel) => [panel.id, panel]));
 
-    // Prefer comic plan order; fall back to rendered order.
     if (comicPlan.panels.length > 0) {
       return comicPlan.panels.map((planned) => {
         const rendered = byId.get(planned.id);
@@ -136,6 +145,19 @@ export function LearningViewer({
       </nav>
 
       {quiz && quiz.questions.length > 0 && <LearningQuiz quiz={quiz} />}
+
+      {roadmap && (
+        <LearningRoadmapPanel roadmap={roadmap} onSelectTopic={onSelectNextTopic} />
+      )}
+
+      {onApplyAdaptation && (
+        <LearningAdaptPanel
+          plan={plan}
+          story={story}
+          comicPlan={comicPlan}
+          onApply={onApplyAdaptation}
+        />
+      )}
     </div>
   );
 }
