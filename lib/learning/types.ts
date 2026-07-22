@@ -168,3 +168,33 @@ export type QuizLesson = {
   story: Story;
   comicPlan: ComicPlan;
 };
+
+export type LearningSession = {
+  learningPlan: LearningPlan;
+  concepts: ConceptExtraction;
+  learningStyle: LearningStyle;
+  story: Story;
+  characterBible: CharacterBible;
+  comicPlan: ComicPlan;
+  validation: ValidationResult;
+  imagePrompts: ImagePromptPlan;
+  renderedComic: RenderedComic;
+  quiz: Quiz;
+};
+
+export type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ConversationHistory = {
+  messages: ConversationMessage[];
+  previousSession?: LearningSession | null;
+};
+
+export type ConversationContext = {
+  resolvedQuestion: string;
+  currentTopic: string;
+  referencedConcepts: string[];
+  contextSummary: string;
+};

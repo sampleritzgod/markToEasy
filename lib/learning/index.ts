@@ -17,6 +17,10 @@ export {
   parseConceptExtraction,
 } from "./concept-extractor";
 export {
+  parseConversationContext,
+  resolveContext,
+} from "./context-manager";
+export {
   generateImagePrompts,
   parseImagePromptPlan,
 } from "./image-prompt-generator";
@@ -27,6 +31,10 @@ export {
 export { planLearning, parseLearningPlan } from "./planner";
 export { generateQuiz, parseQuiz } from "./quiz-generator";
 export { buildScenes, parseScenePlan } from "./scene-consistency";
+export {
+  LearningSessionValidationError,
+  runLearningSession,
+} from "./session-orchestrator";
 export { generateStory, parseStory } from "./story-generator";
 export { parseLearningStyle, selectLearningStyle } from "./style-router";
 export {
@@ -40,11 +48,15 @@ export {
   type ComicPanel,
   type ComicPlan,
   type ConceptExtraction,
+  type ConversationContext,
+  type ConversationHistory,
+  type ConversationMessage,
   type ImagePromptPanel,
   type ImagePromptPlan,
   type ImagePromptStyle,
   type LearningDifficulty,
   type LearningPlan,
+  type LearningSession,
   type LearningStyle,
   type LearningStyleId,
   type PlanLearningInput,
