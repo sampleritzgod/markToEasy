@@ -6,16 +6,34 @@ export const LEARNING_DIFFICULTIES = [
 
 export type LearningDifficulty = (typeof LEARNING_DIFFICULTIES)[number];
 
-export const LEARNING_STYLE = "comic" as const;
+export const LEARNING_STYLES = [
+  "comic",
+  "story",
+  "timeline",
+  "flowchart",
+  "mindmap",
+  "diagram",
+  "animation",
+  "quiz",
+] as const;
 
-export type LearningStyle = typeof LEARNING_STYLE;
+export type LearningStyleId = (typeof LEARNING_STYLES)[number];
+
+export const LEARNING_STYLE = "comic" as const satisfies LearningStyleId;
+
+export type LearningStyle = {
+  selectedStyle: LearningStyleId;
+  confidence: number;
+  reason: string;
+  alternatives: LearningStyleId[];
+};
 
 export type LearningPlan = {
   topic: string;
   difficulty: LearningDifficulty;
   concepts: string[];
   analogy: string;
-  learningStyle: LearningStyle;
+  learningStyle: LearningStyleId;
 };
 
 export type PlanLearningInput = {

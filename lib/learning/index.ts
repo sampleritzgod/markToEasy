@@ -23,10 +23,12 @@ export {
 export { planLearning, parseLearningPlan } from "./planner";
 export { buildScenes, parseScenePlan } from "./scene-consistency";
 export { generateStory, parseStory } from "./story-generator";
+export { parseLearningStyle, selectLearningStyle } from "./style-router";
 export {
   IMAGE_PROMPT_STYLE,
   LEARNING_DIFFICULTIES,
   LEARNING_STYLE,
+  LEARNING_STYLES,
   type CharacterBible,
   type CharacterBibleCharacter,
   type CharacterBibleEnvironment,
@@ -38,6 +40,7 @@ export {
   type LearningDifficulty,
   type LearningPlan,
   type LearningStyle,
+  type LearningStyleId,
   type PlanLearningInput,
   type RenderedComic,
   type RenderedPanel,
