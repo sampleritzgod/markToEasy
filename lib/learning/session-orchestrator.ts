@@ -1,15 +1,27 @@
+import { getCachedLesson, saveLessonToCache } from "@/lib/cache";
+
 import { generateCharacterBible } from "./character-bible";
 import { generateComicPlan } from "./comic-planner";
 import { renderComic } from "./comic-renderer";
 import { extractConcepts } from "./concept-extractor";
 import { generateImagePrompts } from "./image-prompt-generator";
 import { validateLearning } from "./learning-validator";
+import { applyCorrectedPanels } from "./apply-corrected-panels";
 import { planLearning } from "./planner";
 import { generateQuiz } from "./quiz-generator";
+import {
+  ComicRenderIncompleteError,
+  summarizeRenderFailures,
+} from "./render-failures";
 import { buildScenes } from "./scene-consistency";
 import { generateStory } from "./story-generator";
-import { selectLearningStyle } from "./style-router";
-import type { LearningSession, ValidationResult } from "./types";
+import {
+  LEARNING_STYLE,
+  type ComicPlan,
+  type LearningSession,
+  type LearningStyle,
+  type ValidationResult,
+} from "./types";
 
 export class LearningSessionValidationError extends Error {
   readonly validation: ValidationResult;
@@ -23,6 +35,38 @@ export class LearningSessionValidationError extends Error {
     this.name = "LearningSessionValidationError";
     this.validation = validation;
   }
+}
+
+export type RunLearningSessionOptions = {
+  /** Skip cache read/write. */
+  bypassCache?: boolean;
+  /**
+   * When true (default), throw if every panel image failed.
+   * Partial failures still return a session; callers should inspect renderedComic.panels[].error.
+   */
+  failIfAllImagesFailed?: boolean;
+};
+
+function comicOnlyLearningStyle(topic: string): LearningStyle {
+  return {
+    selectedStyle: LEARNING_STYLE,
+    confidence: 100,
+    reason: `Product currently ships comic lessons only for "${topic}".`,
+    alternatives: ["story", "diagram", "quiz"],
+  };
+}
+
+function isLearningSession(value: unknown): value is LearningSession {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Record<string, unknown>;
+  return Boolean(
+    data.learningPlan &&
+      data.story &&
+      data.comicPlan &&
+      data.renderedComic &&
+      data.quiz &&
+      data.imagePrompts,
+  );
 }
 
 async function runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
@@ -40,10 +84,61 @@ async function runStep<T>(name: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function runLearningSession(question: string): Promise<LearningSession> {
+/**
+ * Validate once; if invalid and corrections exist, apply them and re-validate once.
+ * Throws LearningSessionValidationError if still invalid after that.
+ */
+async function validateWithCorrectionPass(
+  learningPlan: LearningSession["learningPlan"],
+  story: LearningSession["story"],
+  comicPlan: ComicPlan,
+): Promise<{ comicPlan: ComicPlan; validation: ValidationResult }> {
+  let workingPlan = comicPlan;
+
+  let validation = await runStep("Learning Validator", () =>
+    validateLearning(learningPlan, story, workingPlan),
+  );
+
+  if (validation.isValid) {
+    return { comicPlan: workingPlan, validation };
+  }
+
+  if (validation.correctedPanels.length > 0) {
+    workingPlan = applyCorrectedPanels(workingPlan, validation.correctedPanels);
+    console.log(
+      `[learning-session] Applied ${validation.correctedPanels.length} corrected panel(s); re-validating`,
+    );
+
+    validation = await runStep("Learning Validator (retry)", () =>
+      validateLearning(learningPlan, story, workingPlan),
+    );
+  }
+
+  if (!validation.isValid) {
+    throw new LearningSessionValidationError(validation);
+  }
+
+  return { comicPlan: workingPlan, validation };
+}
+
+export async function runLearningSession(
+  question: string,
+  options: RunLearningSessionOptions = {},
+): Promise<LearningSession> {
   const trimmed = question.trim();
   if (!trimmed) {
     throw new Error("Question is required");
+  }
+
+  const bypassCache = options.bypassCache === true;
+  const failIfAllImagesFailed = options.failIfAllImagesFailed !== false;
+
+  if (!bypassCache) {
+    const cached = await getCachedLesson(trimmed, LEARNING_STYLE);
+    if (cached.cacheHit && isLearningSession(cached.assets)) {
+      console.log(`[learning-session] Cache hit ${cached.lessonId}`);
+      return cached.assets;
+    }
   }
 
   const learningPlan = await runStep("Learning Planner", () =>
@@ -52,9 +147,8 @@ export async function runLearningSession(question: string): Promise<LearningSess
 
   const concepts = await runStep("Concept Extractor", () => extractConcepts(trimmed));
 
-  const learningStyle = await runStep("Learning Style Router", () =>
-    selectLearningStyle(trimmed, learningPlan),
-  );
+  // Comic-only product path: skip style-router LLM call (H2).
+  const learningStyle = comicOnlyLearningStyle(learningPlan.topic);
 
   const story = await runStep("Story Generator", () => generateStory(learningPlan));
 
@@ -62,22 +156,20 @@ export async function runLearningSession(question: string): Promise<LearningSess
     generateCharacterBible(story),
   );
 
-  const comicPlan = await runStep("Comic Planner", () => generateComicPlan(story));
+  const initialComicPlan = await runStep("Comic Planner", () => generateComicPlan(story));
 
-  const validation = await runStep("Learning Validator", () =>
-    validateLearning(learningPlan, story, comicPlan),
+  const { comicPlan, validation } = await validateWithCorrectionPass(
+    learningPlan,
+    story,
+    initialComicPlan,
   );
 
-  if (!validation.isValid) {
-    throw new LearningSessionValidationError(validation);
-  }
-
-  await runStep("Scene Consistency Engine", () =>
+  const scenePlan = await runStep("Scene Consistency Engine", () =>
     buildScenes(characterBible, comicPlan),
   );
 
   const imagePrompts = await runStep("Image Prompt Generator", () =>
-    generateImagePrompts(comicPlan),
+    generateImagePrompts(comicPlan, { scenePlan, characterBible }),
   );
 
   const renderedComic = await runStep("Comic Renderer", () =>
@@ -87,6 +179,16 @@ export async function runLearningSession(question: string): Promise<LearningSess
     }),
   );
 
+  const renderSummary = summarizeRenderFailures(renderedComic);
+  if (renderSummary.someFailed) {
+    console.warn(
+      `[learning-session] ${renderSummary.failedCount}/${renderSummary.totalCount} panel image(s) failed`,
+    );
+  }
+  if (failIfAllImagesFailed && renderSummary.allFailed) {
+    throw new ComicRenderIncompleteError(renderedComic, renderSummary);
+  }
+
   const quiz = await runStep("Quiz Generator", () =>
     generateQuiz({
       plan: learningPlan,
@@ -95,7 +197,7 @@ export async function runLearningSession(question: string): Promise<LearningSess
     }),
   );
 
-  return {
+  const session: LearningSession = {
     learningPlan,
     concepts,
     learningStyle,
@@ -107,4 +209,19 @@ export async function runLearningSession(question: string): Promise<LearningSess
     renderedComic,
     quiz,
   };
+
+  if (!bypassCache) {
+    try {
+      await saveLessonToCache({
+        question: trimmed,
+        style: LEARNING_STYLE,
+        assets: session,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[learning-session] Failed to write lesson cache: ${message}`);
+    }
+  }
+
+  return session;
 }

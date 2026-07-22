@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "ingest": "tsx --env-file=.env.local scripts/ingest.ts",
     "postinstall": "prisma generate"
   },
@@ -31,11 +34,13 @@
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.3",
     "prisma": "^6.19.3",
     "tailwindcss": "^4.1.8",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }

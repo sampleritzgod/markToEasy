@@ -5,19 +5,23 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ComicPanel } from "@/components/learning/ComicPanel";
 import { LearningProgress } from "@/components/learning/LearningProgress";
+import { LearningQuiz } from "@/components/learning/LearningQuiz";
 import { Button } from "@/components/ui/button";
 import type {
   ComicPlan,
   LearningPlan,
+  Quiz,
   RenderedComic,
   Story,
 } from "@/lib/learning";
+import { summarizeRenderFailures } from "@/lib/learning";
 
 export type LearningViewerProps = {
   plan: LearningPlan;
   story: Story;
   comicPlan: ComicPlan;
   renderedComic: RenderedComic;
+  quiz?: Quiz | null;
 };
 
 export function LearningViewer({
@@ -25,6 +29,7 @@ export function LearningViewer({
   story,
   comicPlan,
   renderedComic,
+  quiz,
 }: LearningViewerProps) {
   const panels = useMemo(() => {
     const byId = new Map(renderedComic.panels.map((panel) => [panel.id, panel]));
@@ -47,6 +52,11 @@ export function LearningViewer({
 
     return [...renderedComic.panels].sort((a, b) => a.id - b.id);
   }, [comicPlan.panels, renderedComic.panels]);
+
+  const renderSummary = useMemo(
+    () => summarizeRenderFailures({ ...renderedComic, panels }),
+    [panels, renderedComic],
+  );
 
   const [index, setIndex] = useState(0);
   const [expanded, setExpanded] = useState(true);
@@ -81,13 +91,30 @@ export function LearningViewer({
         <LearningProgress current={index + 1} total={total} />
       </header>
 
+      {renderSummary.someFailed && (
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+          role="status"
+        >
+          <p className="font-medium">
+            {renderSummary.failedCount} of {renderSummary.totalCount} panel image
+            {renderSummary.failedCount === 1 ? "" : "s"} failed to generate.
+          </p>
+          <p className="mt-1 text-amber-100/80">
+            Failed panels:{" "}
+            {renderSummary.failedPanels.map((panel) => panel.id).join(", ")}. You can
+            still read narration and learning points.
+          </p>
+        </div>
+      )}
+
       <ComicPanel
         panel={current}
         expanded={expanded}
         onToggle={() => setExpanded((value) => !value)}
       />
 
-      <nav className="flex items-center justify-between gap-3 pb-4">
+      <nav className="flex items-center justify-between gap-3">
         <Button
           type="button"
           variant="outline"
@@ -107,6 +134,8 @@ export function LearningViewer({
           <ChevronRight className="h-4 w-4" />
         </Button>
       </nav>
+
+      {quiz && quiz.questions.length > 0 && <LearningQuiz quiz={quiz} />}
     </div>
   );
 }

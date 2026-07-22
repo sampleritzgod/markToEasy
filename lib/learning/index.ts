@@ -27,6 +27,7 @@ export {
 export {
   generateImagePrompts,
   parseImagePromptPlan,
+  type GenerateImagePromptsOptions,
 } from "./image-prompt-generator";
 export {
   parseValidationResult,
@@ -39,9 +40,16 @@ export {
   parseLearningRoadmap,
 } from "./roadmap-generator";
 export { buildScenes, parseScenePlan } from "./scene-consistency";
+export { applyCorrectedPanels } from "./apply-corrected-panels";
+export {
+  ComicRenderIncompleteError,
+  summarizeRenderFailures,
+  type RenderFailureSummary,
+} from "./render-failures";
 export {
   LearningSessionValidationError,
   runLearningSession,
+  type RunLearningSessionOptions,
 } from "./session-orchestrator";
 export { generateStory, parseStory } from "./story-generator";
 export { parseLearningStyle, selectLearningStyle } from "./style-router";

@@ -24,7 +24,7 @@ export function EmptyState({ onSelectPrompt, onLogin, isLoggedIn }: EmptyStatePr
         Ask questions about your course
       </h2>
       <p className="mt-2 max-w-md text-center text-sm text-muted-foreground">
-        Search transcripts, get cited answers, and explore lessons with Course Copilot.
+        Search transcripts, get cited answers, and explore lessons with MarkToEasy.
       </p>
 
       {!isLoggedIn && onLogin && (

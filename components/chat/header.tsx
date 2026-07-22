@@ -29,7 +29,7 @@ export function Header({ title, loading, loadingLabel, onOpenSidebar }: HeaderPr
         </div>
       </div>
       <span className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-        Course Copilot
+        MarkToEasy
       </span>
     </header>
   );

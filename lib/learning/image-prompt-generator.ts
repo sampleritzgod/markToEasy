@@ -2,9 +2,11 @@ import OpenAI from "openai";
 
 import {
   IMAGE_PROMPT_STYLE,
+  type CharacterBible,
   type ComicPlan,
   type ImagePromptPanel,
   type ImagePromptPlan,
+  type ScenePlan,
 } from "./types";
 
 const MODEL = "gpt-4o-mini";
@@ -18,10 +20,11 @@ const REQUIRED_PROMPT_ELEMENTS = [
   "educational comic",
 ] as const;
 
-const SYSTEM_PROMPT = `You are an image prompt generator for educational comics. Turn a comic plan into one image prompt per panel and return ONLY valid JSON.
+const SYSTEM_PROMPT = `You are an image prompt generator for educational comics. Turn consistent scene panels into one image prompt per panel and return ONLY valid JSON.
 
 Rules:
 - Generate exactly one imagePrompt for each input panel, keeping the same panel ids.
+- Treat scene imageContext + character bible details as the source of truth for looks, clothing, environments, and art style.
 - Keep characters, clothing, environment, and art style consistent across every panel.
 - Always set style to "educational comic".
 - Every imagePrompt must explicitly describe:
@@ -31,7 +34,7 @@ Rules:
   - Lighting
   - Facial expressions
   - Educational comic style
-- Use one consistent visual style for the entire comic.
+- Incorporate negative-prompt guidance from the character bible when provided.
 - Do not generate images.
 - Do not generate explanations, captions, or commentary.
 - Return valid JSON only, matching this shape exactly:
@@ -69,7 +72,53 @@ function assertValidComicPlan(comicPlan: ComicPlan): void {
   }
 }
 
-function formatComicPlan(comicPlan: ComicPlan): string {
+function assertValidScenePlan(scenePlan: ScenePlan, comicPlan: ComicPlan): void {
+  if (!scenePlan?.artStyle?.trim()) {
+    throw new Error("Scene plan artStyle is required");
+  }
+  if (!Array.isArray(scenePlan.panels) || scenePlan.panels.length === 0) {
+    throw new Error("Scene plan panels are required");
+  }
+  if (scenePlan.panels.length !== comicPlan.panels.length) {
+    throw new Error(
+      `Scene plan panel count (${scenePlan.panels.length}) must match comic plan (${comicPlan.panels.length})`,
+    );
+  }
+}
+
+function formatSceneDrivenInput(
+  comicPlan: ComicPlan,
+  scenePlan: ScenePlan,
+  characterBible?: CharacterBible | null,
+): string {
+  return JSON.stringify(
+    {
+      title: scenePlan.title || comicPlan.title,
+      artStyle: scenePlan.artStyle,
+      negativePrompt: characterBible?.negativePrompt ?? null,
+      characters: characterBible?.characters ?? [],
+      environments: characterBible?.environments ?? [],
+      panels: scenePlan.panels.map((panel) => {
+        const comicPanel = comicPlan.panels.find((item) => item.id === panel.id);
+        return {
+          id: panel.id,
+          sceneDescription: panel.sceneDescription,
+          characters: panel.characters,
+          environment: panel.environment,
+          imageContext: panel.imageContext,
+          visualDescription: comicPanel?.visualDescription ?? "",
+          narration: panel.narration,
+          dialogue: panel.dialogue,
+          learningPoint: panel.learningPoint,
+        };
+      }),
+    },
+    null,
+    2,
+  );
+}
+
+function formatComicPlanFallback(comicPlan: ComicPlan): string {
   return JSON.stringify(
     {
       title: comicPlan.title,
@@ -98,10 +147,7 @@ function assertPromptCoverage(prompt: string, panelId: number): void {
   }
 }
 
-function parsePanel(
-  raw: unknown,
-  expectedId: number,
-): ImagePromptPanel {
+function parsePanel(raw: unknown, expectedId: number): ImagePromptPanel {
   if (!raw || typeof raw !== "object") {
     throw new Error(`Invalid image prompt plan: panel ${expectedId} must be an object`);
   }
@@ -158,29 +204,47 @@ export function parseImagePromptPlan(
   };
 }
 
+export type GenerateImagePromptsOptions = {
+  scenePlan?: ScenePlan | null;
+  characterBible?: CharacterBible | null;
+};
+
 export async function generateImagePrompts(
   comicPlan: ComicPlan,
+  options: GenerateImagePromptsOptions = {},
 ): Promise<ImagePromptPlan> {
   assertValidComicPlan(comicPlan);
 
+  const scenePlan = options.scenePlan ?? null;
+  if (scenePlan) {
+    assertValidScenePlan(scenePlan, comicPlan);
+  }
+
   const expectedPanelIds = comicPlan.panels.map((panel) => panel.id);
   const client = getClient();
+  const userContent = scenePlan
+    ? `Create one image prompt per panel from this scene-consistent package.
+
+Lock character looks, clothing, environments, and art style from the scene imageContext and character bible.
+Every prompt must include characters, scene, camera angle, lighting, facial expressions, and educational comic style.
+
+Scene-driven input:
+${formatSceneDrivenInput(comicPlan, scenePlan, options.characterBible)}`
+    : `Create one image prompt per panel for this comic plan.
+
+Keep characters, clothing, environment, and art style identical across panels.
+Every prompt must include characters, scene, camera angle, lighting, facial expressions, and educational comic style.
+
+Comic plan:
+${formatComicPlanFallback(comicPlan)}`;
+
   const response = await client.chat.completions.create({
     model: MODEL,
     temperature: 0.3,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Create one image prompt per panel for this comic plan.
-
-Keep characters, clothing, environment, and art style identical across panels.
-Every prompt must include characters, scene, camera angle, lighting, facial expressions, and educational comic style.
-
-Comic plan:
-${formatComicPlan(comicPlan)}`,
-      },
+      { role: "user", content: userContent },
     ],
   });
 

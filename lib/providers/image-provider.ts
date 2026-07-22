@@ -82,11 +82,14 @@ export class GeminiImageProvider implements ImageProvider {
   async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
     const apiKey = requireApiKey("GEMINI_API_KEY", this.options.apiKey);
     const model = this.options.model ?? "imagen-3.0-generate-002";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
 
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify({
         instances: [{ prompt: input.prompt }],
         parameters: { sampleCount: 1 },

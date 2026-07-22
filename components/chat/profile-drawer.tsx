@@ -41,7 +41,11 @@ export function ProfileDrawer({ open, onClose, name, email, image }: ProfileDraw
           <div className="flex items-center gap-4">
             {image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt="" className="h-14 w-14 rounded-full" />
+              <img
+                src={image}
+                alt={name ? `${name} avatar` : "User avatar"}
+                className="h-14 w-14 rounded-full"
+              />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-lg font-semibold text-primary-foreground">
                 {(name?.[0] ?? email?.[0] ?? "U").toUpperCase()}

@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   MessageSquarePlus,
@@ -21,6 +23,8 @@ type SidebarProps = {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   onSelectChat: (chatId: string) => void;
+  onDeleteChat?: (chatId: string) => void;
+  onRenameChat?: (chatId: string, title: string) => void;
   onNewChat: () => void;
   onToggleCollapse: () => void;
   onCloseMobile: () => void;
@@ -40,6 +44,8 @@ export function Sidebar({
   searchQuery,
   onSearchChange,
   onSelectChat,
+  onDeleteChat,
+  onRenameChat,
   onNewChat,
   onToggleCollapse,
   onCloseMobile,
@@ -100,6 +106,19 @@ export function Sidebar({
             {!collapsed && "New chat"}
           </button>
 
+          <Link
+            href="/learning"
+            onClick={onCloseMobile}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted",
+              collapsed && "justify-center px-2",
+            )}
+            title="Learning comic"
+          >
+            <BookOpen className="h-4 w-4 shrink-0 text-primary" />
+            {!collapsed && "Learning comic"}
+          </Link>
+
           {isLoggedIn && !collapsed && (
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -125,6 +144,8 @@ export function Sidebar({
                 onSelectChat(id);
                 onCloseMobile();
               }}
+              onDeleteChat={onDeleteChat}
+              onRenameChat={onRenameChat}
             />
           ) : (
             !collapsed && (
@@ -148,7 +169,11 @@ export function Sidebar({
             >
               {userImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={userImage} alt="" className="h-8 w-8 rounded-full" />
+                <img
+                  src={userImage}
+                  alt={userName ? `${userName} avatar` : "User avatar"}
+                  className="h-8 w-8 rounded-full"
+                />
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                   {(userName?.[0] ?? userEmail?.[0] ?? "U").toUpperCase()}

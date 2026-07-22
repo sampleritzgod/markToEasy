@@ -1,9 +1,10 @@
 import type { LoadingStep } from "@/components/chat/types";
 
 const STEPS: { key: LoadingStep; label: string }[] = [
+  { key: "resolving", label: "Resolving follow-up..." },
   { key: "searching", label: "Searching transcripts..." },
-  { key: "ranking", label: "Ranking results..." },
   { key: "generating", label: "Generating answer..." },
+  { key: "saving", label: "Saving conversation..." },
 ];
 
 type LoadingStateProps = {
@@ -11,10 +12,13 @@ type LoadingStateProps = {
 };
 
 export function LoadingState({ step }: LoadingStateProps) {
-  const currentIndex = STEPS.findIndex((s) => s.key === step);
+  const currentIndex = Math.max(
+    0,
+    STEPS.findIndex((item) => item.key === step),
+  );
 
   return (
-    <div className="px-4 py-6">
+    <div className="px-4 py-6" aria-live="polite">
       <div className="mx-auto max-w-3xl space-y-3 rounded-xl border border-border bg-card p-5">
         {STEPS.map((item, index) => {
           const isActive = index === currentIndex;
@@ -24,12 +28,16 @@ export function LoadingState({ step }: LoadingStateProps) {
             <div key={item.key} className="flex items-center gap-3">
               <div
                 className={`h-2 w-2 rounded-full ${
-                  isDone ? "bg-primary" : isActive ? "bg-primary" : "bg-muted"
+                  isDone || isActive ? "bg-primary" : "bg-muted"
                 }`}
               />
               <p
                 className={`text-sm ${
-                  isActive ? "font-medium text-foreground" : isDone ? "text-muted-foreground" : "text-muted-foreground/50"
+                  isActive
+                    ? "font-medium text-foreground"
+                    : isDone
+                      ? "text-muted-foreground"
+                      : "text-muted-foreground/50"
                 }`}
               >
                 {item.label}
@@ -48,5 +56,5 @@ export function LoadingState({ step }: LoadingStateProps) {
 }
 
 export function getLoadingLabel(step: LoadingStep): string {
-  return STEPS.find((s) => s.key === step)?.label ?? "Working...";
+  return STEPS.find((item) => item.key === step)?.label ?? "Working...";
 }

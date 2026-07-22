@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { FormEvent, KeyboardEvent, useEffect, useRef } from "react";
 
 type PromptInputProps = {
@@ -38,15 +38,6 @@ export function PromptInput({ value, loading, onChange, onSubmit }: PromptInputP
         onSubmit={handleSubmit}
         className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border border-border bg-card p-2 shadow-sm"
       >
-        <button
-          type="button"
-          disabled
-          className="mb-1 rounded-lg p-2 text-muted-foreground/40"
-          aria-label="Attach file"
-          title="Coming soon"
-        >
-          <Paperclip className="h-4 w-4" />
-        </button>
         <textarea
           ref={textareaRef}
           rows={1}
@@ -55,7 +46,7 @@ export function PromptInput({ value, loading, onChange, onSubmit }: PromptInputP
           onKeyDown={handleKeyDown}
           disabled={loading}
           placeholder="Ask anything about your course..."
-          className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent px-1 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+          className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
         />
         <button
           type="submit"

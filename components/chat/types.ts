@@ -23,7 +23,7 @@ export type ThreadMessage = {
   createdAt?: string;
 };
 
-export type LoadingStep = "searching" | "ranking" | "generating";
+export type LoadingStep = "resolving" | "searching" | "generating" | "saving";
 
 export type ChatGroup = {
   label: string;

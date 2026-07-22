@@ -10,6 +10,8 @@ type ChatHistoryProps = {
   collapsed: boolean;
   searchQuery: string;
   onSelectChat: (chatId: string) => void;
+  onDeleteChat?: (chatId: string) => void;
+  onRenameChat?: (chatId: string, title: string) => void;
 };
 
 export function ChatHistory({
@@ -18,6 +20,8 @@ export function ChatHistory({
   collapsed,
   searchQuery,
   onSelectChat,
+  onDeleteChat,
+  onRenameChat,
 }: ChatHistoryProps) {
   const filtered = chats.filter((chat) =>
     chat.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -58,6 +62,8 @@ export function ChatHistory({
                 chat={chat}
                 active={activeChatId === chat.id}
                 onSelect={onSelectChat}
+                onDelete={onDeleteChat}
+                onRename={onRenameChat}
               />
             ))}
           </div>
