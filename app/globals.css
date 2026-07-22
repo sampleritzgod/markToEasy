@@ -17,7 +17,23 @@
   --radius-lg: 12px;
 }
 
-:root {
+html.light {
+  --background: #f9fafb;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --border: #e5e7eb;
+  --input: #ffffff;
+  --ring: #7c3aed;
+  --accent: #f3f4f6;
+  --sidebar: #f3f4f6;
+}
+
+html.dark {
   --background: #0b0f19;
   --foreground: #f3f4f6;
   --card: #111827;

@@ -27,6 +27,7 @@ export async function GET(_request: Request, context: RouteContext) {
           content: true,
           lesson: true,
           timestamp: true,
+          sources: true,
           createdAt: true,
         },
       },

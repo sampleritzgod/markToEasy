@@ -13,10 +13,27 @@ import { Sidebar } from "@/components/chat/sidebar";
 import type { ChatSummary, LoadingStep, Source, ThreadMessage } from "@/components/chat/types";
 import { getChatTitle } from "@/lib/chat-ui";
 
+function normalizeSources(raw: unknown): Source[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw as Source[];
+}
+
+function normalizeMessages(raw: ThreadMessage[]): ThreadMessage[] {
+  return raw.map((message) => ({
+    ...message,
+    sources: normalizeSources(message.sources),
+    createdAt:
+      typeof message.createdAt === "string"
+        ? message.createdAt
+        : message.createdAt
+          ? new Date(message.createdAt).toISOString()
+          : undefined,
+  }));
+}
+
 export function ChatApp() {
   const { data: session } = useSession();
   const [question, setQuestion] = useState("");
-  const [sources, setSources] = useState<Source[]>([]);
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -41,8 +58,7 @@ export function ChatApp() {
     const response = await fetch(`/api/chats/${chatId}`);
     if (!response.ok) return;
     const data = (await response.json()) as { chat: { messages: ThreadMessage[] } };
-    setMessages(data.chat.messages);
-    setSources([]);
+    setMessages(normalizeMessages(data.chat.messages));
   }, []);
 
   useEffect(() => {
@@ -65,7 +81,6 @@ export function ChatApp() {
   function handleNewChat() {
     setActiveChatId(null);
     setMessages([]);
-    setSources([]);
     setQuestion("");
     setError(null);
     setPendingQuestion(null);
@@ -90,7 +105,6 @@ export function ChatApp() {
 
   function handleSelectChat(chatId: string) {
     setActiveChatId(chatId);
-    setSources([]);
     setError(null);
     setPendingQuestion(null);
     loadChat(chatId);
@@ -102,7 +116,6 @@ export function ChatApp() {
 
     setLoading(true);
     setError(null);
-    setSources([]);
     setPendingQuestion(trimmed);
     setQuestion("");
 
@@ -127,24 +140,27 @@ export function ChatApp() {
         throw new Error(data.error ?? "Request failed");
       }
 
-      setSources(data.chunks ?? []);
+      const chunks = data.chunks ?? [];
 
       if (data.chatId) {
         setActiveChatId(data.chatId);
         await loadChat(data.chatId);
         await loadChats();
       } else {
+        const now = new Date().toISOString();
         setMessages((current) => [
           ...current,
-          { id: `user-${Date.now()}`, role: "user", content: trimmed },
+          { id: `user-${Date.now()}`, role: "user", content: trimmed, createdAt: now },
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
             content: data.answer ?? "",
-            lesson: data.chunks?.[0]?.lesson ?? null,
-            timestamp: data.chunks?.[0]
-              ? `${data.chunks[0].startTimestamp} --> ${data.chunks[0].endTimestamp}`
+            lesson: chunks[0]?.lesson ?? null,
+            timestamp: chunks[0]
+              ? `${chunks[0].startTimestamp} --> ${chunks[0].endTimestamp}`
               : null,
+            sources: chunks,
+            createdAt: now,
           },
         ]);
       }
@@ -165,11 +181,6 @@ export function ChatApp() {
       content: pendingQuestion,
     });
   }
-
-  const lastAssistantIndex = displayMessages.reduce(
-    (acc, msg, i) => (msg.role === "assistant" ? i : acc),
-    -1,
-  );
 
   const hasMessages = displayMessages.length > 0;
   const chatTitle = getChatTitle(chats, activeChatId);
@@ -212,20 +223,15 @@ export function ChatApp() {
             />
           ) : (
             <div className="pb-4 pt-2">
-              {displayMessages.map((message, index) => (
+              {displayMessages.map((message) => (
                 <MessageBubble
                   key={message.id}
                   role={message.role}
                   content={message.content}
                   lesson={message.lesson}
                   timestamp={message.timestamp}
-                  sources={
-                    message.role === "assistant" &&
-                    index === lastAssistantIndex &&
-                    sources.length > 0
-                      ? sources
-                      : undefined
-                  }
+                  sources={message.role === "assistant" ? message.sources : undefined}
+                  createdAt={message.createdAt}
                 />
               ))}
               {loading && <LoadingState step={loadingStep} />}

@@ -3,6 +3,8 @@
 import { SessionProvider } from "next-auth/react";
 import type { Session } from "next-auth";
 
+import { ThemeProvider } from "@/components/theme-provider";
+
 export function Providers({
   children,
   session,
@@ -12,7 +14,7 @@ export function Providers({
 }) {
   return (
     <SessionProvider session={session} refetchOnWindowFocus={false}>
-      {children}
+      <ThemeProvider>{children}</ThemeProvider>
     </SessionProvider>
   );
 }

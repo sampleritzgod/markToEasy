@@ -58,3 +58,20 @@ export function formatCitation(source: {
 }): string {
   return `${source.lesson} (${source.startTimestamp} → ${source.endTimestamp})`;
 }
+
+export function parseChunkNumber(chunkId?: string | null): number | null {
+  if (!chunkId) return null;
+  const match = chunkId.match(/-(\d+)$/);
+  if (!match) return null;
+  return Number.parseInt(match[1], 10) + 1;
+}
+
+export function formatMessageTime(dateString?: string): string | null {
+  if (!dateString) return null;
+  return new Date(dateString).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

@@ -24,4 +24,5 @@ export type SearchResult = {
   startTimestamp: string;
   endTimestamp: string;
   text: string;
+  chunkId?: string;
 };

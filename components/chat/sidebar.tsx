@@ -10,6 +10,7 @@ import {
 
 import { ChatHistory } from "@/components/chat/chat-history";
 import type { ChatSummary } from "@/components/chat/types";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type SidebarProps = {
@@ -134,7 +135,8 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="border-t border-border p-3">
+        <div className="border-t border-border p-3 space-y-3">
+          {!collapsed && <ThemeToggle compact />}
           {isLoggedIn ? (
             <button
               type="button"

@@ -4,6 +4,7 @@ export type SemanticSearchResult = {
   endTimestamp: string;
   text: string;
   score: number;
+  chunkId?: string;
 };
 
 export const DEFAULT_LIMIT = 5;

@@ -1,11 +1,23 @@
 import { generateChatTitle } from "@/lib/chat/generate-title";
 import type { SemanticSearchResult } from "@/lib/search";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 function formatTimestamp(chunks: SemanticSearchResult[]): string | null {
   const first = chunks[0];
   if (!first) return null;
   return `${first.startTimestamp} --> ${first.endTimestamp}`;
+}
+
+function serializeSources(chunks: SemanticSearchResult[]): Prisma.InputJsonValue {
+  return chunks.map((chunk) => ({
+    lesson: chunk.lesson,
+    startTimestamp: chunk.startTimestamp,
+    endTimestamp: chunk.endTimestamp,
+    text: chunk.text,
+    score: chunk.score,
+    chunkId: chunk.chunkId ?? null,
+  }));
 }
 
 export async function saveChatMessages(input: {
@@ -49,6 +61,7 @@ export async function saveChatMessages(input: {
         content: answer,
         lesson: chunks[0]?.lesson ?? null,
         timestamp: formatTimestamp(chunks),
+        sources: serializeSources(chunks),
       },
     ],
   });

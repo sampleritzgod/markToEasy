@@ -16,5 +16,6 @@ export async function semanticSearch(
     endTimestamp: result.endTimestamp,
     text: result.text,
     score: result.score,
+    chunkId: result.chunkId,
   }));
 }

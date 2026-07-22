@@ -1,18 +1,21 @@
 "use client";
 
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
 import type { Source } from "@/components/chat/types";
-import { formatCitation } from "@/lib/chat-ui";
+import { formatCitation, parseChunkNumber } from "@/lib/chat-ui";
 
 type SourceCardProps = {
   source: Source;
+  rank: number;
+  total: number;
 };
 
-export function SourceCard({ source }: SourceCardProps) {
+export function SourceCard({ source, rank, total }: SourceCardProps) {
   const [copied, setCopied] = useState(false);
   const citation = formatCitation(source);
+  const chunkNumber = parseChunkNumber(source.chunkId);
 
   async function copyCitation() {
     await navigator.clipboard.writeText(`${citation}\n\n${source.text}`);
@@ -24,24 +27,25 @@ export function SourceCard({ source }: SourceCardProps) {
     <div className="rounded-xl border border-border bg-background p-4 transition-colors hover:border-border/80 hover:bg-card">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              Source {rank} of {total}
+            </span>
+            {chunkNumber !== null && (
+              <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                Chunk #{chunkNumber}
+              </span>
+            )}
+            {source.score > 0 && (
+              <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                {(source.score * 100).toFixed(0)}% match
+              </span>
+            )}
+          </div>
           <p className="truncate text-sm font-medium text-foreground">{source.lesson}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="mt-0.5 font-mono text-xs text-muted-foreground">
             {source.startTimestamp} → {source.endTimestamp}
           </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {source.score > 0 && (
-            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-              {(source.score * 100).toFixed(0)}%
-            </span>
-          )}
-          <button
-            type="button"
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Open source"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
       <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{source.text}</p>

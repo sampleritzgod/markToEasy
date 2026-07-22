@@ -4,6 +4,7 @@ import { signOut } from "next-auth/react";
 import { Keyboard, HelpCircle, BarChart3, Settings, LogOut } from "lucide-react";
 
 import { DrawerCloseButton } from "@/components/chat/header";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type ProfileDrawerProps = {
@@ -57,6 +58,7 @@ export function ProfileDrawer({ open, onClose, name, email, image }: ProfileDraw
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
+          <ThemeToggle />
           <DrawerLink icon={Settings} label="Profile settings" />
           <DrawerLink icon={BarChart3} label="Usage statistics" disabled />
           <DrawerLink icon={BarChart3} label="API usage" disabled />

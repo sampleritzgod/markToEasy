@@ -23,6 +23,7 @@ export async function search(
       startTimestamp: String(payload.startTimestamp ?? ""),
       endTimestamp: String(payload.endTimestamp ?? ""),
       text: String(payload.text ?? ""),
+      chunkId: payload.chunkId ? String(payload.chunkId) : undefined,
     };
   });
 }

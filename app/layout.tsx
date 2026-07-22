@@ -29,7 +29,14 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("marktoeasy-theme");document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(t==="light"?"light":"dark");}catch(e){document.documentElement.classList.add("dark");}})();`,
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} h-full font-sans`}>
         <Providers session={session}>{children}</Providers>
       </body>

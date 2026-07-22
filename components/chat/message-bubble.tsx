@@ -7,12 +7,20 @@ import type { Source } from "@/components/chat/types";
 type MessageBubbleProps = {
   role: string;
   content: string;
-  sources?: Source[];
+  sources?: Source[] | null;
   lesson?: string | null;
   timestamp?: string | null;
+  createdAt?: string;
 };
 
-export function MessageBubble({ role, content, sources, lesson, timestamp }: MessageBubbleProps) {
+export function MessageBubble({
+  role,
+  content,
+  sources,
+  lesson,
+  timestamp,
+  createdAt,
+}: MessageBubbleProps) {
   const isUser = role === "user";
 
   if (isUser) {
@@ -25,18 +33,25 @@ export function MessageBubble({ role, content, sources, lesson, timestamp }: Mes
     );
   }
 
+  const sourceList = sources ?? [];
+
   return (
     <div className="px-4 py-3">
       <div className="mx-auto w-full max-w-3xl space-y-4">
-        <AnswerCard content={content} lesson={lesson} timestamp={timestamp} />
-        {sources && sources.length > 0 && (
+        <AnswerCard content={content} lesson={lesson} timestamp={timestamp} createdAt={createdAt} />
+        {sourceList.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Sources
+              Sources ({sourceList.length})
             </p>
             <div className="grid gap-2">
-              {sources.map((source, index) => (
-                <SourceCard key={`${source.lesson}-${source.startTimestamp}-${index}`} source={source} />
+              {sourceList.map((source, index) => (
+                <SourceCard
+                  key={`${source.lesson}-${source.startTimestamp}-${index}`}
+                  source={source}
+                  rank={index + 1}
+                  total={sourceList.length}
+                />
               ))}
             </div>
           </div>

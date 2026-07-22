@@ -10,6 +10,7 @@ export type Source = {
   endTimestamp: string;
   text: string;
   score: number;
+  chunkId?: string | null;
 };
 
 export type ThreadMessage = {
@@ -18,6 +19,8 @@ export type ThreadMessage = {
   content: string;
   lesson?: string | null;
   timestamp?: string | null;
+  sources?: Source[] | null;
+  createdAt?: string;
 };
 
 export type LoadingStep = "searching" | "ranking" | "generating";
