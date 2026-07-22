@@ -198,3 +198,33 @@ export type ConversationContext = {
   referencedConcepts: string[];
   contextSummary: string;
 };
+
+export const ADAPTATION_TYPES = [
+  "simpler",
+  "more technical",
+  "real-world analogy",
+  "step-by-step",
+  "visual-first",
+  "shorter",
+  "deeper",
+  "example-driven",
+] as const;
+
+export type AdaptationType = (typeof ADAPTATION_TYPES)[number];
+
+export const REGENERATE_TARGETS = ["story", "comic", "quiz"] as const;
+
+export type RegenerateTarget = (typeof REGENERATE_TARGETS)[number];
+
+export type Adaptation = {
+  adaptationType: AdaptationType;
+  updatedInstructions: string;
+  regenerate: RegenerateTarget[];
+};
+
+export type AdaptationSession = {
+  learningPlan: LearningPlan;
+  story: Story;
+  comicPlan: ComicPlan;
+  conversationContext?: ConversationContext | null;
+};

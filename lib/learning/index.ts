@@ -21,6 +21,10 @@ export {
   resolveContext,
 } from "./context-manager";
 export {
+  adaptExplanation,
+  parseAdaptation,
+} from "./adaptive-explainer";
+export {
   generateImagePrompts,
   parseImagePromptPlan,
 } from "./image-prompt-generator";
@@ -38,10 +42,15 @@ export {
 export { generateStory, parseStory } from "./story-generator";
 export { parseLearningStyle, selectLearningStyle } from "./style-router";
 export {
+  ADAPTATION_TYPES,
   IMAGE_PROMPT_STYLE,
   LEARNING_DIFFICULTIES,
   LEARNING_STYLE,
   LEARNING_STYLES,
+  REGENERATE_TARGETS,
+  type Adaptation,
+  type AdaptationSession,
+  type AdaptationType,
   type CharacterBible,
   type CharacterBibleCharacter,
   type CharacterBibleEnvironment,
@@ -63,6 +72,7 @@ export {
   type Quiz,
   type QuizLesson,
   type QuizQuestion,
+  type RegenerateTarget,
   type RenderedComic,
   type RenderedPanel,
   type ScenePanel,
