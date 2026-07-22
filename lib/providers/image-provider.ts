@@ -38,9 +38,27 @@ function resolveOpenAIImageModel(override?: string): string {
   return (
     override ??
     process.env.OPENAI_IMAGE_MODEL ??
-    // Current OpenAI accounts expose gpt-image-*; dall-e-3 is often unavailable.
-    "gpt-image-1-mini"
+    // Full gpt-image-1 is clearer than mini; override with gpt-image-2 for max quality.
+    "gpt-image-1"
   );
+}
+
+function resolveOpenAIImageQuality(
+  override?: CreateImageProviderOptions["quality"],
+): NonNullable<CreateImageProviderOptions["quality"]> {
+  const fromEnv = process.env.OPENAI_IMAGE_QUALITY as
+    | CreateImageProviderOptions["quality"]
+    | undefined;
+  return override ?? fromEnv ?? "high";
+}
+
+function resolveOpenAIImageSize(
+  override?: CreateImageProviderOptions["size"],
+): NonNullable<CreateImageProviderOptions["size"]> {
+  const fromEnv = process.env.OPENAI_IMAGE_SIZE as
+    | CreateImageProviderOptions["size"]
+    | undefined;
+  return override ?? fromEnv ?? "1024x1024";
 }
 
 function requireApiKey(envName: string, override?: string): string {
@@ -72,11 +90,8 @@ export class OpenAIImageProvider implements ImageProvider {
     });
 
     const model = resolveOpenAIImageModel(this.options.model);
-    const size = this.options.size ?? "1024x1024";
-    const quality =
-      this.options.quality ??
-      (process.env.OPENAI_IMAGE_QUALITY as CreateImageProviderOptions["quality"]) ??
-      "low";
+    const size = resolveOpenAIImageSize(this.options.size);
+    const quality = resolveOpenAIImageQuality(this.options.quality);
 
     // GPT Image and DALL·E accept different optional fields; cast at the boundary.
     const response = await client.images.generate({

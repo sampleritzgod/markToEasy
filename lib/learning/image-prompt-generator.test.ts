@@ -103,4 +103,10 @@ describe("ensurePromptCoverage", () => {
     const repaired = ensurePromptCoverage("diagram only", 1);
     expect(missingPromptCategories(repaired)).toEqual([]);
   });
+
+  it("appends clarity guidance for sharper panels", () => {
+    const repaired = ensurePromptCoverage(goodPrompt(), 1);
+    expect(repaired).toMatch(/crisp clean comic linework/i);
+    expect(repaired).toMatch(/sharp focus/i);
+  });
 });

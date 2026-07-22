@@ -74,6 +74,12 @@ Optional:
 GEMINI_API_KEY=
 FLUX_API_KEY=
 LESSON_CACHE_DIR=.cache/lessons
+# Comic image quality (defaults: gpt-image-1 + high)
+OPENAI_IMAGE_MODEL=gpt-image-1
+OPENAI_IMAGE_QUALITY=high
+# OPENAI_IMAGE_MODEL=gpt-image-2   # sharpest, slower/costlier
+# OPENAI_IMAGE_QUALITY=medium      # faster/cheaper compromise
+# OPENAI_IMAGE_SIZE=1536x1024      # wider comic panels
 ```
 
 ### 3. Database

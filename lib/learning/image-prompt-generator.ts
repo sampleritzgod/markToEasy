@@ -109,6 +109,7 @@ Rules:
   - Lighting
   - Facial expressions
   - Educational comic style
+- Optimize for clarity: crisp clean comic linework, sharp focus, high visual detail, readable faces, vibrant but clean colors, no blur, no watermark, no extra text or speech bubbles drawn into the image.
 - Incorporate negative-prompt guidance from the character bible when provided.
 - Do not generate images.
 - Do not generate explanations, captions, or commentary.
@@ -212,6 +213,17 @@ const CATEGORY_REPAIRS: Record<string, string> = {
   style: "educational comic illustration style",
 };
 
+const CLARITY_SUFFIX =
+  "crisp clean comic linework, sharp focus, high visual detail, readable faces, no blur, no watermark, no text in the image";
+
+/** Append clarity guidance once so image models favor sharper panels. */
+export function enhanceImagePromptClarity(prompt: string): string {
+  const trimmed = prompt.trim();
+  if (!trimmed) return CLARITY_SUFFIX;
+  if (/crisp clean comic linework/i.test(trimmed)) return trimmed;
+  return `${trimmed}, ${CLARITY_SUFFIX}`;
+}
+
 /**
  * Repair incomplete model prompts instead of failing the whole learning session.
  * Always appends phrases for every missing coverage category.
@@ -252,7 +264,7 @@ export function ensurePromptCoverage(prompt: string, panelId?: number): string {
     );
   }
 
-  return result.trim();
+  return enhanceImagePromptClarity(result);
 }
 
 /** Soft check used only in tests — never throws after repair. */
